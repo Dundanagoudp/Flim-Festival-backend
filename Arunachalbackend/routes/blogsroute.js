@@ -5,15 +5,15 @@ import { createCategory, getCategories, updateCategory, deleteCategory, createBl
 const router = express.Router();
 
 // Categories
-router.post("/category", protect, restrictTo("admin"), createCategory);
-router.get("/category", getCategories);
-router.put("/category/:id", protect, restrictTo("admin"), updateCategory);
-router.delete("/category/:id", protect, restrictTo("admin"), deleteCategory);
+router.post("/categoryCreate", protect, restrictTo("admin"), createCategory);
+router.get("/getallcategory", getCategories);
+router.put("/updatecategory/:id", protect, restrictTo("admin"), updateCategory);
+router.delete("/deletecategory/:id", protect, restrictTo("admin"), deleteCategory);
 
 // Blogs (single create, update, delete; list)
-router.post("/", protect, restrictTo("admin"), createBlog);
-router.get("/", getBlogs);
-router.get("/latest", getLatest);
+router.post("/createblog", protect, restrictTo("admin"), createBlog);
+router.get("/getallblogs", getBlogs);
+router.get("/getlatest", getLatest);
 router.get("/:id", getBlogById);
 router.put("/:id", protect, restrictTo("admin"), updateBlog);
 router.delete("/:id", protect, restrictTo("admin"), deleteBlog);
