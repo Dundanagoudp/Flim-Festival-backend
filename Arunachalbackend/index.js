@@ -6,6 +6,10 @@ import cookieParser from 'cookie-parser';
 import authRoute from './routes/authRoute.js';
 import galleryRoute from './routes/galleryRoute.js';
 import guestRoute from './routes/guestRoutes.js';
+import awardsRoutes from './routes/awardsRoutes.js';
+import eventRoutes from './routes/eventsRoutes.js';
+import registrationRoutes from './routes/registrationRoutes.js';
+import submissionRoutes from './routes/submissionRoutes.js';
 import blogsRoute from './routes/blogsroute.js';
 
 const app = express();
