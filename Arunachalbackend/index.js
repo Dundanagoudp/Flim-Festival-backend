@@ -10,6 +10,7 @@ import awardsRoutes from './routes/awardsRoutes.js';
 import eventRoutes from './routes/eventsRoutes.js';
 import registrationRoutes from './routes/registrationRoutes.js';
 import submissionRoutes from './routes/submissionRoutes.js';
+import blogsRoute from './routes/blogsroute.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -39,6 +40,9 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(cookieParser());
 app.use("/api/v1/auth" ,authRoute)
+app.use("/api/v1/gallery", galleryRoute)
+app.use("/api/v1/guest", guestRoute)
+app.use("/api/v1/blogs", blogsRoute)
  
 app.get('/', (req, res) => {
     res.send('arunachal flim fetival backend is running')
