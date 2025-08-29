@@ -6,6 +6,7 @@ import cookieParser from 'cookie-parser';
 import authRoute from './routes/authRoute.js';
 import galleryRoute from './routes/galleryRoute.js';
 import guestRoute from './routes/guestRoutes.js';
+import blogsRoute from './routes/blogsroute.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -37,6 +38,7 @@ app.use(cookieParser());
 app.use("/api/v1/auth" ,authRoute)
 app.use("/api/v1/gallery", galleryRoute)
 app.use("/api/v1/guest", guestRoute)
+app.use("/api/v1/blogs", blogsRoute)
  
 app.get('/', (req, res) => {
     res.send('arunachal flim fetival backend is running')
