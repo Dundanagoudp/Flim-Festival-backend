@@ -4,6 +4,7 @@ import cors from 'cors';
 import connectDB from './config/mongoConnect.js';
 import cookieParser from 'cookie-parser';
 import authRoute from './routes/authRoute.js';
+import guestRoute from './routes/guestRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -34,6 +35,7 @@ app.use(express.urlencoded({ extended: true }));
 
 app.use(cookieParser());
 app.use("/api/v1/auth" ,authRoute)
+app.use("/api/v1/guest", guestRoute)
  
 app.get('/', (req, res) => {
     res.send('arunachal flim fetival backend is running')
