@@ -184,7 +184,12 @@ export const deleteBlog = async (req, res) => {
 
 export const getLatest = async (_req, res) => {
   try {
-    const items = await Blog.find().sort({ publishedDate: -1 }).limit(5).select("title publishedDate imageUrl author");
+    const items = await Blog.find()
+      .sort({ publishedDate: -1 })
+      .limit(5)
+      .populate("category", "name")
+      .select("-__v"); // Exclude only version field, include all other fields
+    
     res.status(200).json(items);
   } catch (err) {
     console.error("Get latest blogs error:", err);
@@ -192,25 +197,40 @@ export const getLatest = async (_req, res) => {
   }
 };
 
-// Convenience wrappers for separate endpoints
-export const createBlogPost = (req, res) => {
-  req.body.contentType = "blog";
-  return createBlog(req, res);
+// Separate functions for blog posts only (GET only)
+export const getBlogPostsOnly = async (req, res) => {
+  try {
+    const { category, latest } = req.query;
+    const filter = { contentType: "blog" };
+    if (category) filter.category = category;
+    
+    let query = Blog.find(filter).populate("category", "name").sort({ publishedDate: -1, createdAt: -1 });
+    if (latest) query = query.limit(parseInt(latest));
+    
+    const items = await query.exec();
+    res.status(200).json(items);
+  } catch (err) {
+    console.error("Get blog posts only error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
 };
 
-export const createLinkPost = (req, res) => {
-  req.body.contentType = "link";
-  return createBlog(req, res);
-};
-
-export const getBlogPostsOnly = (req, res) => {
-  req.query.contentType = "blog";
-  return getBlogs(req, res);
-};
-
-export const getLinkPostsOnly = (req, res) => {
-  req.query.contentType = "link";
-  return getBlogs(req, res);
+// Separate functions for link posts only (GET only)
+export const getLinkPostsOnly = async (req, res) => {
+  try {
+    const { category, latest } = req.query;
+    const filter = { contentType: "link" };
+    if (category) filter.category = category;
+    
+    let query = Blog.find(filter).populate("category", "name").sort({ publishedDate: -1, createdAt: -1 });
+    if (latest) query = query.limit(parseInt(latest));
+    
+    const items = await query.exec();
+    res.status(200).json(items);
+  } catch (err) {
+    console.error("Get link posts only error:", err);
+    res.status(500).json({ message: "Server error", error: err.message });
+  }
 };
 
 
