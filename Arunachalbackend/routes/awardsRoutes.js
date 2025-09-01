@@ -1,9 +1,9 @@
-import expres from "express";
+import express from "express";
 import {createAwards,getAllAwards,getAwardsById,updateAwards,deleteAwards} from "../controller/awardsController.js";
 import {restrictTo, protect} from "../utils/auth.js";
 
 import upload from "../utils/multerMemory.js";
-const router = expres.Router();
+const router = express.Router();
 
 router.post("/createAwards", protect, restrictTo("admin"), upload.fields([
     { name: "image", maxCount: 1 },
