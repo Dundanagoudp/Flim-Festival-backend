@@ -45,8 +45,8 @@ app.use("/api/v1/guest", guestRoute)
 app.use("/api/v1/blogs", blogsRoute)
 app.use("/api/v1/awards", awardsRoutes)
 app.use("/api/v1/events", eventRoutes)
-// app.use("/api/v1/registration", registrationRoutes)
-// app.use("/api/v1/submission", submissionRoutes)
+app.use("/api/v1/registration", registrationRoutes)
+app.use("/api/v1/submission", submissionRoutes)
  
 app.get('/', (req, res) => {
     res.send('arunachal flim fetival backend is running')

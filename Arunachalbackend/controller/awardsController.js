@@ -84,7 +84,47 @@ const getAllAwards = async (req, res) => {
 
 const updateAwards = async (req, res) => {
     try {
-        const updatedAwards = await Awards.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const { title, description, rule1, rule2, rule3 } = req.body;
+        const updateData = { title, description, rule1, rule2, rule3 };
+
+        // Handle main image update if new file is uploaded
+        if (req.files && req.files.image && req.files.image[0]) {
+            const mainFile = req.files.image[0];
+            const fileName = `awards/${Date.now()}_${mainFile.originalname}`;
+            const file = bucket.file(fileName);
+
+            await file.save(mainFile.buffer, {
+                metadata: { contentType: mainFile.mimetype },
+            });
+
+            await file.makePublic();
+            updateData.image = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+        }
+
+        // Handle array images update if new files are uploaded
+        if (req.files && req.files.array_images && req.files.array_images.length > 0) {
+            const arrayImageUrls = await Promise.all(
+                req.files.array_images.map(async (img) => {
+                    const fileName = `awards/${Date.now()}_${img.originalname}`;
+                    const file = bucket.file(fileName);
+
+                    await file.save(img.buffer, {
+                        metadata: { contentType: img.mimetype },
+                    });
+
+                    await file.makePublic();
+                    return `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+                })
+            );
+            updateData.array_images = arrayImageUrls;
+        }
+
+        const updatedAwards = await Awards.findByIdAndUpdate(
+            req.params.id, 
+            updateData, 
+            { new: true, runValidators: true }
+        );
+        
         if (!updatedAwards) {
             return res.status(404).json({ message: "Awards not found" });
         }

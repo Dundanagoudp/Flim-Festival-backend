@@ -11,8 +11,10 @@ router.post("/createAwards", protect, restrictTo("admin"), upload.fields([
   ]), createAwards);
 router.get("/getAllAwards", getAllAwards);
 router.get("/getAwardsById/:id", getAwardsById);
-router.put("/updateAwards/:id", protect,restrictTo("admin"), updateAwards);
+router.put("/updateAwards/:id", protect,restrictTo("admin"), upload.fields([
+    { name: "image", maxCount: 1 },
+    { name: "array_images", maxCount: 10 },
+  ]), updateAwards);
 router.delete("/deleteAwards/:id", protect, restrictTo("admin"), deleteAwards);
-
 
 export default router;
