@@ -1,6 +1,15 @@
 import mongoose from "mongoose";
 
+const awardCategorySchema = new mongoose.Schema({
+  name: { type: String, required: true, unique: true, trim: true },
+}, { timestamps: true });
+
 const awardSchema = new mongoose.Schema({
+  category: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "AwardCategory",
+    required: true
+  },
   title: {
     type: String,
     required: true,
@@ -29,8 +38,9 @@ const awardSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-});
+}, { timestamps: true });
 
+const AwardCategory = mongoose.model("AwardCategory", awardCategorySchema);
 const Award = mongoose.model("Award", awardSchema);
 
-export default Award;
+export { Award, AwardCategory };
