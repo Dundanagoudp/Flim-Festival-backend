@@ -16,11 +16,16 @@ import {
   uploadEventDayImage,
   updateEventDayWithImage,
   deleteEventDayImage,
+  updateEvent,
+  getEventById,
 } from "../controller/eventsController1.js";
 
 const eventRoute = express.Router();
 
-eventRoute.post("/addEvent", protect, restrictTo("admin"), addEvent);
+// Create event supports multipart/form-data with field name 'image'
+eventRoute.post("/addEvent", protect, restrictTo("admin"), upload.single("image"), addEvent);
+// Update event supports multipart/form-data to optionally replace image
+eventRoute.put("/updateEvent/:eventId", protect, restrictTo("admin"), upload.single("image"), updateEvent);
 eventRoute.put(
   "/updateEventDay/:eventDayId",
   protect,
@@ -60,12 +65,13 @@ eventRoute.put(
   updateTime
 );
 eventRoute.delete("/deleteEvent/:eventId", protect, restrictTo("admin"), deleteEvent);
-eventRoute.get("/getEvent", protect, restrictTo("admin", "user"), getEvent);
+eventRoute.get("/getEvent",  getEvent);
 eventRoute.get("/totalEvent", getTotalEvent);
 eventRoute.get("/getEventDay", protect, restrictTo("admin", "user"), getEventDay);
 eventRoute.delete("/deleteTime/:timeId", protect, restrictTo("admin"), deleteTime);
 eventRoute.get("/getTime", protect, restrictTo("admin", "user"), getTime);
 eventRoute.get("/getFullEvent", getFullEventDetails);
+eventRoute.get("/event/:eventId", getEventById);
 
 export default eventRoute;
 

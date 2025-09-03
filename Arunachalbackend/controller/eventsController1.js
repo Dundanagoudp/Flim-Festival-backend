@@ -4,11 +4,66 @@ import mongoose from "mongoose";
 import upload from "../utils/multerMemory.js";
 import { bucket } from "../config/firebaseConfig.js";
 
+// Update event core fields and optionally replace image
+export const updateEvent = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { name, description, year, month, startDate, endDate, location } = req.body;
+
+    const event = await EventsCollection.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    if (typeof name !== "undefined") event.name = name;
+    if (typeof description !== "undefined") event.description = description;
+    if (typeof year !== "undefined") event.year = year;
+    if (typeof month !== "undefined") event.month = month;
+    if (typeof location !== "undefined") event.location = location;
+
+    if (typeof startDate !== "undefined") event.startDate = new Date(startDate);
+    if (typeof endDate !== "undefined") event.endDate = new Date(endDate);
+
+    // Recompute totalDays if dates changed
+    if (typeof startDate !== "undefined" || typeof endDate !== "undefined") {
+      const start = new Date(event.startDate);
+      const end = new Date(event.endDate);
+      if (isNaN(start.getTime()) || isNaN(end.getTime()) || end <= start) {
+        return res.status(400).json({ message: "Invalid start/end date" });
+      }
+      event.totalDays = Math.floor((end - start) / (24 * 60 * 60 * 1000)) + 1;
+    }
+
+    if (req.file) {
+      // delete old image if exists
+      if (event.image) {
+        try {
+          const oldFileName = event.image.split('/').pop();
+          const oldPath = `events/${oldFileName}`;
+          await bucket.file(oldPath).delete();
+        } catch (_) {}
+      }
+      const fileName = `events/${eventId}_${Date.now()}_${req.file.originalname}`;
+      const file = bucket.file(fileName);
+      await file.save(req.file.buffer, { metadata: { contentType: req.file.mimetype } });
+      await file.makePublic();
+      event.image = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+    }
+
+    event.updatedAt = new Date();
+    await event.save();
+    res.status(200).json({ message: "Event updated", event });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+// Create event; supports multipart/form-data with optional image
 export const addEvent = async (req, res) => {
   const session = await mongoose.startSession();
   session.startTransaction();
   try {
-    const { name, description, year, month, startDate, endDate } = req.body;
+    const { name, description, year, month, startDate, endDate, location } = req.body;
 
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -34,7 +89,17 @@ export const addEvent = async (req, res) => {
       startDate: start,
       endDate: end,
       totalDays,
+      location,
     });
+
+    // If image file present, upload to Firebase and set event.image before saving
+    if (req.file) {
+      const fileName = `events/${Date.now()}_${req.file.originalname}`;
+      const file = bucket.file(fileName);
+      await file.save(req.file.buffer, { metadata: { contentType: req.file.mimetype } });
+      await file.makePublic();
+      event.image = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+    }
 
     await event.save({ session });
 
@@ -54,7 +119,7 @@ export const addEvent = async (req, res) => {
     await EventDayCollection.insertMany(eventDayDocs, { session });
 
     await session.commitTransaction();
-    res.status(201).json({ success: true, eventId: event._id });
+    res.status(201).json({ success: true, eventId: event._id, image: event.image });
   } catch (error) {
     await session.abortTransaction();
     const statusCode = error.message.includes("Invalid")
@@ -202,41 +267,49 @@ export const getTotalEvent = async (req, res) => {
     if (!events || events.length === 0) {
       return res.status(404).json({ message: "No events found" });
     }
-    const event = events[0];
-    const timeEntries = await TimeCollection.find({ event_ref: event._id })
-      .populate("day_ref")
-      .populate("event_ref");
-    const eventDays = await EventDayCollection.find({ event_ref: event._id });
 
-    const daysMap = new Map();
-    eventDays.forEach((day) => {
-      const dayObj = day.toObject();
-      dayObj.times = [];
-      daysMap.set(day._id.toString(), dayObj);
-    });
+    // For each event, gather its days and times
+    const all = await Promise.all(
+      events.map(async (eventDoc) => {
+        const eventId = eventDoc._id;
+        const [timeEntries, eventDays] = await Promise.all([
+          TimeCollection.find({ event_ref: eventId }).populate("day_ref").populate("event_ref"),
+          EventDayCollection.find({ event_ref: eventId }),
+        ]);
 
-    timeEntries.forEach((entry) => {
-      if (!entry.day_ref) return;
-      const dayId = entry.day_ref._id.toString();
-      if (daysMap.has(dayId)) {
-        const timeEntry = entry.toObject();
-        delete timeEntry.event_ref;
-        delete timeEntry.day_ref;
-        daysMap.get(dayId).times.push(timeEntry);
-      }
-    });
+        const daysMap = new Map();
+        eventDays.forEach((day) => {
+          const dayObj = day.toObject();
+          dayObj.times = [];
+          daysMap.set(day._id.toString(), dayObj);
+        });
 
-    const days = Array.from(daysMap.values());
-    days.sort((a, b) => a.dayNumber - b.dayNumber);
-    days.forEach((day) => {
-      day.times.sort((a, b) => {
-        const timeA = a.startTime ? new Date(`1970-01-01T${a.startTime}`) : 0;
-        const timeB = b.startTime ? new Date(`1970-01-01T${b.startTime}`) : 0;
-        return timeA - timeB;
-      });
-    });
+        timeEntries.forEach((entry) => {
+          if (!entry.day_ref) return;
+          const dayId = entry.day_ref._id.toString();
+          if (daysMap.has(dayId)) {
+            const timeEntry = entry.toObject();
+            delete timeEntry.event_ref;
+            delete timeEntry.day_ref;
+            daysMap.get(dayId).times.push(timeEntry);
+          }
+        });
 
-    res.json({ event: event.toObject(), days });
+        const days = Array.from(daysMap.values());
+        days.sort((a, b) => a.dayNumber - b.dayNumber);
+        days.forEach((day) => {
+          day.times.sort((a, b) => {
+            const timeA = a.startTime ? new Date(`1970-01-01T${a.startTime}`) : 0;
+            const timeB = b.startTime ? new Date(`1970-01-01T${b.startTime}`) : 0;
+            return timeA - timeB;
+          });
+        });
+
+        return { event: eventDoc.toObject(), days };
+      })
+    );
+
+    res.json({ items: all, count: all.length });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -423,6 +496,33 @@ export const getFullEventDetails = async (req, res) => {
     res.status(200).json({ event, days: structuredDays });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Get a single event by id, with its days and time slots
+export const getEventById = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const event = await EventsCollection.findById(eventId);
+    if (!event) {
+      return res.status(404).json({ message: "Event not found" });
+    }
+
+    const eventDays = await EventDayCollection.find({ event_ref: event._id });
+    const timeSlots = await TimeCollection.find({ event_ref: event._id }).populate(
+      "day_ref"
+    );
+
+    const structuredDays = eventDays.map((day) => ({
+      ...day.toObject(),
+      timeSlots: timeSlots.filter(
+        (slot) => slot.day_ref && slot.day_ref._id.toString() === day._id.toString()
+      ),
+    }));
+
+    res.status(200).json({ event, days: structuredDays });
+  } catch (err) {
+    res.status(500).json({ message: "Server error", error: err.message });
   }
 };
 
