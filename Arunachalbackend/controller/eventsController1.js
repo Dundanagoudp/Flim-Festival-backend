@@ -101,6 +101,20 @@ export const updateEventDayWithImage = async (req, res) => {
     if (typeof description !== "undefined") eventDay.description = description;
 
     if (req.file) {
+      // Delete old image if it exists
+      if (eventDay.image) {
+        try {
+          const oldImageUrl = eventDay.image;
+          const oldFileName = oldImageUrl.split('/').pop();
+          const oldFullPath = `event-days/${oldFileName}`;
+          const oldFile = bucket.file(oldFullPath);
+          await oldFile.delete();
+        } catch (storageError) {
+          console.log("Old image not found in storage, continuing with new upload");
+        }
+      }
+
+      // Upload new image
       const fileName = `event-days/${eventDayId}_${Date.now()}_${req.file.originalname}`;
       const file = bucket.file(fileName);
       await file.save(req.file.buffer, { metadata: { contentType: req.file.mimetype } });
@@ -127,6 +141,19 @@ export const uploadEventDayImage = async (req, res) => {
 
     if (!req.file) {
       return res.status(400).json({ message: "Image file is required" });
+    }
+
+    // Delete old image if it exists
+    if (eventDay.image) {
+      try {
+        const oldImageUrl = eventDay.image;
+        const oldFileName = oldImageUrl.split('/').pop();
+        const oldFullPath = `event-days/${oldFileName}`;
+        const oldFile = bucket.file(oldFullPath);
+        await oldFile.delete();
+      } catch (storageError) {
+        console.log("Old image not found in storage, continuing with new upload");
+      }
     }
 
     const fileName = `event-days/${eventDayId}_${Date.now()}_${req.file.originalname}`;
@@ -396,6 +423,50 @@ export const getFullEventDetails = async (req, res) => {
     res.status(200).json({ event, days: structuredDays });
   } catch (err) {
     res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Delete event day image
+export const deleteEventDayImage = async (req, res) => {
+  try {
+    const { eventDayId } = req.params;
+    const eventDay = await EventDayCollection.findById(eventDayId);
+    
+    if (!eventDay) {
+      return res.status(404).json({ message: "Event day not found" });
+    }
+
+    if (!eventDay.image) {
+      return res.status(404).json({ message: "No image found for this event day" });
+    }
+
+    // Extract file name from the full URL
+    const imageUrl = eventDay.image;
+    const fileName = imageUrl.split('/').pop();
+    const fullPath = `event-days/${fileName}`;
+
+    try {
+      // Delete from Firebase Storage
+      const file = bucket.file(fullPath);
+      await file.delete();
+    } catch (storageError) {
+      console.log("Image not found in storage, continuing with database update");
+    }
+
+    // Remove image URL from database
+    eventDay.image = undefined;
+    eventDay.updatedAt = new Date();
+    await eventDay.save();
+
+    res.status(200).json({ 
+      message: "Event day image deleted successfully",
+      eventDay: eventDay 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: "Server error", 
+      error: error.message 
+    });
   }
 };
 

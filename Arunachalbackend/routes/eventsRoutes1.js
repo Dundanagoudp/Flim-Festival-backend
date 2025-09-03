@@ -15,6 +15,7 @@ import {
   getFullEventDetails,
   uploadEventDayImage,
   updateEventDayWithImage,
+  deleteEventDayImage,
 } from "../controller/eventsController1.js";
 
 const eventRoute = express.Router();
@@ -39,6 +40,12 @@ eventRoute.post(
   restrictTo("admin"),
   upload.single("image"),
   uploadEventDayImage
+);
+eventRoute.delete(
+  "/deleteEventDayImage/:eventDayId",
+  protect,
+  restrictTo("admin"),
+  deleteEventDayImage
 );
 eventRoute.post(
   "/addTime/:eventId/day/:eventDay_ref",
