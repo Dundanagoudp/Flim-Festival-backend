@@ -1,8 +1,6 @@
 import AboutUs from "../models/aboutusModule.js";
 import { bucket } from "../config/firebaseConfig.js";
 
-// Remove generic section updater (not needed after pruning)
-
 
 // Section-specific GET endpoints (public)
 const getAboutUsBanner = async (req, res) => {
