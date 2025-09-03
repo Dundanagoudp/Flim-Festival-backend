@@ -11,6 +11,7 @@ const EventsCollectionSchema = new mongoose.Schema({
   createdAt: Date,
   updatedAt: Date,
   location: String,
+  image: String,
 });
 
 EventsCollectionSchema.pre("save", function (next) {

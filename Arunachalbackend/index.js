@@ -12,6 +12,7 @@ import eventRoutesV1 from './routes/eventsRoutes1.js';
 import registrationRoutes from './routes/registrationRoutes.js';
 import submissionRoutes from './routes/submissionRoutes.js';
 import blogsRoute from './routes/blogsroute.js';
+import aboutUsRoute from './routes/aboutusRoute.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -49,6 +50,7 @@ app.use("/api/v1/awards", awardsRoutes)
 app.use("/api/v1/events-schedule", eventRoutesV1)
 app.use("/api/v1/registration", registrationRoutes)
 app.use("/api/v1/submission", submissionRoutes)
+app.use("/api/v1/aboutus", aboutUsRoute)
  
 app.get('/', (req, res) => {
     res.send('arunachal flim fetival backend is running')
