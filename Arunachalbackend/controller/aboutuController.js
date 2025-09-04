@@ -1,30 +1,37 @@
-import AboutUs from "../models/aboutusModule.js";
 import { bucket } from "../config/firebaseConfig.js";
+import { AboutUsBanner, AboutUsStatistics, AboutUsLookInside } from "../models/aboutusModels.js";
+
+// Helper: delete a file from Firebase Storage when given a public URL
+const deleteFileFromPublicUrl = async (publicUrl) => {
+    try {
+        if (!publicUrl) return;
+        const base = `https://storage.googleapis.com/${bucket.name}/`;
+        if (!publicUrl.startsWith(base)) return; // not our bucket
+        const relativePath = publicUrl.slice(base.length); // e.g. about-us/banner/abc.png
+        if (!relativePath) return;
+        const file = bucket.file(relativePath);
+        await file.delete({ ignoreNotFound: true });
+    } catch (_) {
+        // Best-effort cleanup; ignore errors so API behavior remains consistent
+    }
+};
 
 
 // Section-specific GET endpoints (public)
 const getAboutUsBanner = async (req, res) => {
     try {
-        const aboutUs = await AboutUs.findOne({ isActive: true });
-        
-        if (!aboutUs) {
-            return res.status(404).json({
-                success: false,
-                message: "About Us content not found"
-            });
+        const bannerDoc = await AboutUsBanner.findOne();
+        if (!bannerDoc) {
+            return res.status(404).json({ success: false, message: "Banner not found" });
         }
-        
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: "Banner content retrieved successfully",
-            data: { id: aboutUs._id, ...aboutUs.banner }
+            data: { id: bannerDoc._id, title: bannerDoc.title, backgroundImage: bannerDoc.backgroundImage }
         });
     } catch (error) {
         console.error("Error fetching banner:", error.message);
-        res.status(500).json({
-            success: false,
-            message: "Server error while fetching banner content"
-        });
+        return res.status(500).json({ success: false, message: "Server error while fetching banner content" });
     }
 };
 
@@ -32,40 +39,32 @@ const getAboutUsBanner = async (req, res) => {
 
 const getAboutUsStatistics = async (req, res) => {
     try {
-        const aboutUs = await AboutUs.findOne({ isActive: true });
-        
-        if (!aboutUs) {
-            return res.status(404).json({
-                success: false,
-                message: "About Us content not found"
-            });
+        const statsDoc = await AboutUsStatistics.findOne();
+        if (!statsDoc) {
+            return res.status(404).json({ success: false, message: "Statistics not found" });
         }
-        
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: "Statistics retrieved successfully",
-            data: { id: aboutUs._id, ...aboutUs.statistics }
+            data: { id: statsDoc._id, years: statsDoc.years, films: statsDoc.films, countries: statsDoc.countries, image: statsDoc.image }
         });
     } catch (error) {
         console.error("Error fetching statistics:", error.message);
-        res.status(500).json({
-            success: false,
-            message: "Server error while fetching statistics"
-        });
+        return res.status(500).json({ success: false, message: "Server error while fetching statistics" });
     }
 };
 
 // Look Inside - GET (public)
 const getAboutUsLookInside = async (req, res) => {
     try {
-        const aboutUs = await AboutUs.findOne({ isActive: true });
-        if (!aboutUs) {
-            return res.status(404).json({ success: false, message: "About Us content not found" });
+        const lookDoc = await AboutUsLookInside.findOne();
+        if (!lookDoc) {
+            return res.status(404).json({ success: false, message: "Look Inside not found" });
         }
         return res.status(200).json({
             success: true,
             message: "Look Inside content retrieved successfully",
-            data: { id: aboutUs._id, ...aboutUs.lookInside }
+            data: { id: lookDoc._id, title: lookDoc.title, description: lookDoc.description, image: lookDoc.image }
         });
     } catch (error) {
         console.error("Error fetching lookInside:", error.message);
@@ -75,63 +74,65 @@ const getAboutUsLookInside = async (req, res) => {
 
 const deleteAboutUsBanner = async (req, res) => {
     try {
-        const aboutUs = await AboutUs.findOne({ isActive: true });
-        if (!aboutUs) {
-            return res.status(404).json({ success: false, message: "About Us content not found" });
+        const bannerDoc = await AboutUsBanner.findOne();
+        if (!bannerDoc) {
+            return res.status(404).json({ success: false, message: "Banner not found" });
         }
-        aboutUs.banner = { title: "", backgroundImage: "" };
-        await aboutUs.save();
-        res.status(200).json({ success: true, message: "Banner deleted successfully", data: { id: aboutUs._id, ...aboutUs.banner } });
+        await deleteFileFromPublicUrl(bannerDoc.backgroundImage);
+        const deletedId = bannerDoc._id;
+        await bannerDoc.deleteOne();
+        return res.status(200).json({ success: true, message: "Banner document deleted", data: { id: deletedId } });
     } catch (error) {
         console.error("Error deleting banner:", error.message);
-        res.status(500).json({ success: false, message: "Server error while deleting banner" });
+        return res.status(500).json({ success: false, message: "Server error while deleting banner" });
     }
 };
 
 const deleteAboutUsStatistics = async (req, res) => {
     try {
-        const aboutUs = await AboutUs.findOne({ isActive: true });
-        if (!aboutUs) {
-            return res.status(404).json({ success: false, message: "About Us content not found" });
+        const statsDoc = await AboutUsStatistics.findOne();
+        if (!statsDoc) {
+            return res.status(404).json({ success: false, message: "Statistics not found" });
         }
-        aboutUs.statistics = { years: 0, films: 0, countries: 0, image: "" };
-        await aboutUs.save();
-        res.status(200).json({ success: true, message: "Statistics deleted successfully", data: { id: aboutUs._id, ...aboutUs.statistics } });
+        await deleteFileFromPublicUrl(statsDoc.image);
+        const deletedId = statsDoc._id;
+        await statsDoc.deleteOne();
+        return res.status(200).json({ success: true, message: "Statistics document deleted", data: { id: deletedId } });
     } catch (error) {
         console.error("Error deleting statistics:", error.message);
-        res.status(500).json({ success: false, message: "Server error while deleting statistics" });
+        return res.status(500).json({ success: false, message: "Server error while deleting statistics" });
     }
 };
 
 const deleteAboutUsBannerById = async (req, res) => {
     try {
         const { id } = req.params;
-        const aboutUs = await AboutUs.findById(id);
-        if (!aboutUs) {
-            return res.status(404).json({ success: false, message: "About Us content not found" });
+        const bannerDoc = await AboutUsBanner.findById(id);
+        if (!bannerDoc) {
+            return res.status(404).json({ success: false, message: "Banner not found" });
         }
-        aboutUs.banner = { title: "", backgroundImage: "" };
-        await aboutUs.save();
-        res.status(200).json({ success: true, message: "Banner deleted successfully", data: { id: aboutUs._id, ...aboutUs.banner } });
+        await deleteFileFromPublicUrl(bannerDoc.backgroundImage);
+        await bannerDoc.deleteOne();
+        return res.status(200).json({ success: true, message: "Banner document deleted", data: { id } });
     } catch (error) {
         console.error("Error deleting banner by id:", error.message);
-        res.status(500).json({ success: false, message: "Server error while deleting banner" });
+        return res.status(500).json({ success: false, message: "Server error while deleting banner" });
     }
 };
 
 const deleteAboutUsStatisticsById = async (req, res) => {
     try {
         const { id } = req.params;
-        const aboutUs = await AboutUs.findById(id);
-        if (!aboutUs) {
-            return res.status(404).json({ success: false, message: "About Us content not found" });
+        const statsDoc = await AboutUsStatistics.findById(id);
+        if (!statsDoc) {
+            return res.status(404).json({ success: false, message: "Statistics not found" });
         }
-        aboutUs.statistics = { years: 0, films: 0, countries: 0, image: "" };
-        await aboutUs.save();
-        res.status(200).json({ success: true, message: "Statistics deleted successfully", data: { id: aboutUs._id, ...aboutUs.statistics } });
+        await deleteFileFromPublicUrl(statsDoc.image);
+        await statsDoc.deleteOne();
+        return res.status(200).json({ success: true, message: "Statistics document deleted", data: { id } });
     } catch (error) {
         console.error("Error deleting statistics by id:", error.message);
-        res.status(500).json({ success: false, message: "Server error while deleting statistics" });
+        return res.status(500).json({ success: false, message: "Server error while deleting statistics" });
     }
 };
 
@@ -190,40 +191,26 @@ const createOrUpdateBanner = async (req, res) => {
         
         const bannerData = {
             title: title || "",
-            backgroundImage: backgroundImage || req.body.backgroundImage || ""
+            backgroundImage: backgroundImage || req.body.backgroundImage || "",
         };
-        
-        let aboutUs = await AboutUs.findOne({ isActive: true });
-        
-        if (aboutUs) {
-            // If updating and no new image, keep existing image
+
+        let bannerDoc = await AboutUsBanner.findOne();
+        if (bannerDoc) {
             if (!backgroundImage && !req.body.backgroundImage) {
-                bannerData.backgroundImage = aboutUs.banner.backgroundImage;
+                bannerData.backgroundImage = bannerDoc.backgroundImage;
             }
-            aboutUs.banner = { ...aboutUs.banner, ...bannerData };
-            await aboutUs.save();
-            
-            res.status(200).json({
-                success: true,
-                message: "Banner updated successfully",
-                data: { id: aboutUs._id, ...aboutUs.banner }
-            });
-        } else {
-            aboutUs = new AboutUs({ banner: bannerData });
-            await aboutUs.save();
-            
-            res.status(201).json({
-                success: true,
-                message: "Banner created successfully",
-                data: { id: aboutUs._id, ...aboutUs.banner }
-            });
+            bannerDoc.title = bannerData.title;
+            bannerDoc.backgroundImage = bannerData.backgroundImage;
+            await bannerDoc.save();
+            return res.status(200).json({ success: true, message: "Banner updated successfully", data: { id: bannerDoc._id, title: bannerDoc.title, backgroundImage: bannerDoc.backgroundImage } });
         }
+
+        bannerDoc = new AboutUsBanner(bannerData);
+        await bannerDoc.save();
+        return res.status(201).json({ success: true, message: "Banner created successfully", data: { id: bannerDoc._id, title: bannerDoc.title, backgroundImage: bannerDoc.backgroundImage } });
     } catch (error) {
         console.error("Error creating/updating banner:", error.message);
-        res.status(500).json({
-            success: false,
-            message: "Server error while creating/updating banner"
-        });
+        return res.status(500).json({ success: false, message: "Server error while creating/updating banner" });
     }
 };
 
@@ -239,7 +226,7 @@ const createOrUpdateStatistics = async (req, res) => {
             try {
                 const crypto = await import('crypto');
                 const fileExtension = req.file.originalname.split('.').pop();
-                const fileName = `statistics-${(await crypto).randomBytes(16).toString('hex')}.${fileExtension}`;
+                const fileName = `statistics-${crypto.randomBytes(16).toString('hex')}.${fileExtension}`;
                 const file = bucket.file(`about-us/statistics/${fileName}`);
 
                 await new Promise((resolve, reject) => {
@@ -273,41 +260,31 @@ const createOrUpdateStatistics = async (req, res) => {
 
         // Compose final stats payload; allow passing image as URL when no file
         const mergedStatistics = {
-            ...statisticsData,
-            ...(uploadedImageUrl ? { image: uploadedImageUrl } : {}),
+            years: Number(statisticsData.years) || 0,
+            films: Number(statisticsData.films) || 0,
+            countries: Number(statisticsData.countries) || 0,
+            image: uploadedImageUrl || statisticsData.image || "",
         };
-        
-        let aboutUs = await AboutUs.findOne({ isActive: true });
-        
-        if (aboutUs) {
-            // Preserve existing image if none provided
-            if (!uploadedImageUrl && !statisticsData.image && aboutUs.statistics?.image) {
-                mergedStatistics.image = aboutUs.statistics.image;
+
+        let statsDoc = await AboutUsStatistics.findOne();
+        if (statsDoc) {
+            if (!uploadedImageUrl && !statisticsData.image && statsDoc.image) {
+                mergedStatistics.image = statsDoc.image;
             }
-            aboutUs.statistics = { ...aboutUs.statistics, ...mergedStatistics };
-            await aboutUs.save();
-            
-            return res.status(200).json({
-                success: true,
-                message: "Statistics updated successfully",
-                data: { id: aboutUs._id, ...aboutUs.statistics }
-            });
-        } else {
-            aboutUs = new AboutUs({ statistics: mergedStatistics });
-            await aboutUs.save();
-            
-            return res.status(201).json({
-                success: true,
-                message: "Statistics created successfully",
-                data: { id: aboutUs._id, ...aboutUs.statistics }
-            });
+            statsDoc.years = mergedStatistics.years;
+            statsDoc.films = mergedStatistics.films;
+            statsDoc.countries = mergedStatistics.countries;
+            statsDoc.image = mergedStatistics.image;
+            await statsDoc.save();
+            return res.status(200).json({ success: true, message: "Statistics updated successfully", data: { id: statsDoc._id, years: statsDoc.years, films: statsDoc.films, countries: statsDoc.countries, image: statsDoc.image } });
         }
+
+        statsDoc = new AboutUsStatistics(mergedStatistics);
+        await statsDoc.save();
+        return res.status(201).json({ success: true, message: "Statistics created successfully", data: { id: statsDoc._id, years: statsDoc.years, films: statsDoc.films, countries: statsDoc.countries, image: statsDoc.image } });
     } catch (error) {
         console.error("Error creating/updating statistics:", error.message);
-        res.status(500).json({
-            success: false,
-            message: "Server error while creating/updating statistics"
-        });
+        return res.status(500).json({ success: false, message: "Server error while creating/updating statistics" });
     }
 };
 
@@ -351,24 +328,24 @@ const createOrUpdateLookInside = async (req, res) => {
         const payload = {
             title,
             description,
-            ...(uploadedImageUrl ? { image: uploadedImageUrl } : {}),
+            image: uploadedImageUrl || req.body.image || "",
         };
 
-        let aboutUs = await AboutUs.findOne({ isActive: true });
-        if (aboutUs) {
-            if (!uploadedImageUrl && aboutUs.lookInside?.image && !req.body.image) {
-                payload.image = aboutUs.lookInside.image;
-            } else if (!uploadedImageUrl && req.body.image) {
-                payload.image = req.body.image;
+        let lookDoc = await AboutUsLookInside.findOne();
+        if (lookDoc) {
+            if (!uploadedImageUrl && !req.body.image && lookDoc.image) {
+                payload.image = lookDoc.image;
             }
-            aboutUs.lookInside = { ...aboutUs.lookInside, ...payload };
-            await aboutUs.save();
-            return res.status(200).json({ success: true, message: "Look Inside updated successfully", data: { id: aboutUs._id, ...aboutUs.lookInside } });
-        } else {
-            aboutUs = new AboutUs({ lookInside: payload });
-            await aboutUs.save();
-            return res.status(201).json({ success: true, message: "Look Inside created successfully", data: { id: aboutUs._id, ...aboutUs.lookInside } });
+            lookDoc.title = payload.title;
+            lookDoc.description = payload.description;
+            lookDoc.image = payload.image;
+            await lookDoc.save();
+            return res.status(200).json({ success: true, message: "Look Inside updated successfully", data: { id: lookDoc._id, title: lookDoc.title, description: lookDoc.description, image: lookDoc.image } });
         }
+
+        lookDoc = new AboutUsLookInside(payload);
+        await lookDoc.save();
+        return res.status(201).json({ success: true, message: "Look Inside created successfully", data: { id: lookDoc._id, title: lookDoc.title, description: lookDoc.description, image: lookDoc.image } });
     } catch (error) {
         console.error("Error creating/updating lookInside:", error.message);
         return res.status(500).json({ success: false, message: "Server error while creating/updating lookInside" });
@@ -378,13 +355,14 @@ const createOrUpdateLookInside = async (req, res) => {
 // Look Inside - DELETE (active)
 const deleteAboutUsLookInside = async (req, res) => {
     try {
-        const aboutUs = await AboutUs.findOne({ isActive: true });
-        if (!aboutUs) {
-            return res.status(404).json({ success: false, message: "About Us content not found" });
+        const lookDoc = await AboutUsLookInside.findOne();
+        if (!lookDoc) {
+            return res.status(404).json({ success: false, message: "Look Inside not found" });
         }
-        aboutUs.lookInside = { title: "", description: "", image: "" };
-        await aboutUs.save();
-        return res.status(200).json({ success: true, message: "Look Inside deleted successfully", data: { id: aboutUs._id, ...aboutUs.lookInside } });
+        await deleteFileFromPublicUrl(lookDoc.image);
+        const deletedId = lookDoc._id;
+        await lookDoc.deleteOne();
+        return res.status(200).json({ success: true, message: "Look Inside document deleted", data: { id: deletedId } });
     } catch (error) {
         console.error("Error deleting lookInside:", error.message);
         return res.status(500).json({ success: false, message: "Server error while deleting lookInside" });
@@ -395,13 +373,13 @@ const deleteAboutUsLookInside = async (req, res) => {
 const deleteAboutUsLookInsideById = async (req, res) => {
     try {
         const { id } = req.params;
-        const aboutUs = await AboutUs.findById(id);
-        if (!aboutUs) {
-            return res.status(404).json({ success: false, message: "About Us content not found" });
+        const lookDoc = await AboutUsLookInside.findById(id);
+        if (!lookDoc) {
+            return res.status(404).json({ success: false, message: "Look Inside not found" });
         }
-        aboutUs.lookInside = { title: "", description: "", image: "" };
-        await aboutUs.save();
-        return res.status(200).json({ success: true, message: "Look Inside deleted successfully", data: { id: aboutUs._id, ...aboutUs.lookInside } });
+        await deleteFileFromPublicUrl(lookDoc.image);
+        await lookDoc.deleteOne();
+        return res.status(200).json({ success: true, message: "Look Inside document deleted", data: { id } });
     } catch (error) {
         console.error("Error deleting lookInside by id:", error.message);
         return res.status(500).json({ success: false, message: "Server error while deleting lookInside" });
