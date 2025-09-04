@@ -352,6 +352,185 @@ const createOrUpdateLookInside = async (req, res) => {
     }
 };
 
+// ID-based UPDATE endpoints
+const updateAboutUsBannerById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title = "" } = req.body || {};
+        let newImageUrl = "";
+
+        const bannerDoc = await AboutUsBanner.findById(id);
+        if (!bannerDoc) {
+            return res.status(404).json({ success: false, message: "Banner not found" });
+        }
+
+        if (req.file) {
+            try {
+                const crypto = await import('crypto');
+                const fileExtension = req.file.originalname.split('.').pop();
+                const fileName = `banner-${crypto.randomBytes(16).toString('hex')}.${fileExtension}`;
+                const file = bucket.file(`about-us/banner/${fileName}`);
+
+                await new Promise((resolve, reject) => {
+                    const stream = file.createWriteStream({
+                        metadata: { contentType: req.file.mimetype },
+                    });
+                    stream.on('error', (err) => reject(err));
+                    stream.on('finish', async () => {
+                        try {
+                            await file.makePublic();
+                            newImageUrl = `https://storage.googleapis.com/${bucket.name}/about-us/banner/${fileName}`;
+                            resolve();
+                        } catch (publicError) {
+                            reject(publicError);
+                        }
+                    });
+                    stream.end(req.file.buffer);
+                });
+            } catch (uploadError) {
+                return res.status(500).json({ success: false, message: "Error uploading image to Firebase" });
+            }
+        }
+
+        // Clean up previous image if a new one is uploaded
+        if (newImageUrl && bannerDoc.backgroundImage && bannerDoc.backgroundImage !== newImageUrl) {
+            await deleteFileFromPublicUrl(bannerDoc.backgroundImage);
+        }
+
+        bannerDoc.title = title;
+        bannerDoc.backgroundImage = newImageUrl || req.body.backgroundImage || bannerDoc.backgroundImage || "";
+        await bannerDoc.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Banner updated successfully",
+            data: { id: bannerDoc._id, title: bannerDoc.title, backgroundImage: bannerDoc.backgroundImage }
+        });
+    } catch (error) {
+        console.error("Error updating banner by id:", error.message);
+        return res.status(500).json({ success: false, message: "Server error while updating banner" });
+    }
+};
+
+const updateAboutUsStatisticsById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { years, films, countries } = req.body || {};
+        let newImageUrl = "";
+
+        const statsDoc = await AboutUsStatistics.findById(id);
+        if (!statsDoc) {
+            return res.status(404).json({ success: false, message: "Statistics not found" });
+        }
+
+        if (req.file) {
+            try {
+                const crypto = await import('crypto');
+                const fileExtension = req.file.originalname.split('.').pop();
+                const fileName = `statistics-${crypto.randomBytes(16).toString('hex')}.${fileExtension}`;
+                const file = bucket.file(`about-us/statistics/${fileName}`);
+
+                await new Promise((resolve, reject) => {
+                    const stream = file.createWriteStream({
+                        metadata: { contentType: req.file.mimetype },
+                    });
+                    stream.on('error', (err) => reject(err));
+                    stream.on('finish', async () => {
+                        try {
+                            await file.makePublic();
+                            newImageUrl = `https://storage.googleapis.com/${bucket.name}/about-us/statistics/${fileName}`;
+                            resolve();
+                        } catch (publicError) {
+                            reject(publicError);
+                        }
+                    });
+                    stream.end(req.file.buffer);
+                });
+            } catch (uploadError) {
+                return res.status(500).json({ success: false, message: "Error uploading image to Firebase" });
+            }
+        }
+
+        if (newImageUrl && statsDoc.image && statsDoc.image !== newImageUrl) {
+            await deleteFileFromPublicUrl(statsDoc.image);
+        }
+
+        statsDoc.years = years !== undefined ? Number(years) : statsDoc.years;
+        statsDoc.films = films !== undefined ? Number(films) : statsDoc.films;
+        statsDoc.countries = countries !== undefined ? Number(countries) : statsDoc.countries;
+        statsDoc.image = newImageUrl || req.body.image || statsDoc.image || "";
+        await statsDoc.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Statistics updated successfully",
+            data: { id: statsDoc._id, years: statsDoc.years, films: statsDoc.films, countries: statsDoc.countries, image: statsDoc.image }
+        });
+    } catch (error) {
+        console.error("Error updating statistics by id:", error.message);
+        return res.status(500).json({ success: false, message: "Server error while updating statistics" });
+    }
+};
+
+const updateAboutUsLookInsideById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title = "", description = "" } = req.body || {};
+        let newImageUrl = "";
+
+        const lookDoc = await AboutUsLookInside.findById(id);
+        if (!lookDoc) {
+            return res.status(404).json({ success: false, message: "Look Inside not found" });
+        }
+
+        if (req.file) {
+            try {
+                const crypto = await import('crypto');
+                const fileExtension = req.file.originalname.split('.').pop();
+                const fileName = `lookinside-${crypto.randomBytes(16).toString('hex')}.${fileExtension}`;
+                const file = bucket.file(`about-us/look-inside/${fileName}`);
+
+                await new Promise((resolve, reject) => {
+                    const stream = file.createWriteStream({
+                        metadata: { contentType: req.file.mimetype },
+                    });
+                    stream.on('error', (err) => reject(err));
+                    stream.on('finish', async () => {
+                        try {
+                            await file.makePublic();
+                            newImageUrl = `https://storage.googleapis.com/${bucket.name}/about-us/look-inside/${fileName}`;
+                            resolve();
+                        } catch (publicError) {
+                            reject(publicError);
+                        }
+                    });
+                    stream.end(req.file.buffer);
+                });
+            } catch (uploadError) {
+                return res.status(500).json({ success: false, message: "Error uploading image to Firebase" });
+            }
+        }
+
+        if (newImageUrl && lookDoc.image && lookDoc.image !== newImageUrl) {
+            await deleteFileFromPublicUrl(lookDoc.image);
+        }
+
+        lookDoc.title = title !== undefined ? title : lookDoc.title;
+        lookDoc.description = description !== undefined ? description : lookDoc.description;
+        lookDoc.image = newImageUrl || req.body.image || lookDoc.image || "";
+        await lookDoc.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Look Inside updated successfully",
+            data: { id: lookDoc._id, title: lookDoc.title, description: lookDoc.description, image: lookDoc.image }
+        });
+    } catch (error) {
+        console.error("Error updating lookInside by id:", error.message);
+        return res.status(500).json({ success: false, message: "Server error while updating lookInside" });
+    }
+};
+
 // Look Inside - DELETE (active)
 const deleteAboutUsLookInside = async (req, res) => {
     try {
@@ -406,5 +585,9 @@ export {
     // ID-based DELETE endpoints
     deleteAboutUsBannerById,
     deleteAboutUsStatisticsById,
-    deleteAboutUsLookInsideById
+    deleteAboutUsLookInsideById,
+    // ID-based UPDATE endpoints
+    updateAboutUsBannerById,
+    updateAboutUsStatisticsById,
+    updateAboutUsLookInsideById
 };
