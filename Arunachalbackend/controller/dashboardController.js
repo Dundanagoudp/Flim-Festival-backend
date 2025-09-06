@@ -231,12 +231,21 @@ export const getBarChartData = async (req, res) => {
     const startDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
 
     // Get content distribution data
+    // Note: Events and Awards are counted without date filter as they are more permanent
     const [blogData, submissionData, eventData, awardData] = await Promise.all([
       Blog.countDocuments({ createdAt: { $gte: startDate } }),
       Submission.countDocuments({ createdAt: { $gte: startDate } }),
-      EventsCollection.countDocuments({ createdAt: { $gte: startDate } }),
-      Award.countDocuments({ createdAt: { $gte: startDate } })
+      EventsCollection.countDocuments(), // Count all events regardless of date
+      Award.countDocuments() // Count all awards regardless of date
     ]);
+
+    // Debug logging
+    console.log('Bar chart counts:', {
+      blogs: blogData,
+      submissions: submissionData,
+      events: eventData,
+      awards: awardData
+    });
 
     // Format data for horizontal bar chart
     const chartData = {
@@ -248,7 +257,7 @@ export const getBarChartData = async (req, res) => {
           submissionData,
           eventData,
           awardData,
-          await Guest.countDocuments({ createdAt: { $gte: startDate } })
+          await Guest.countDocuments() // Count all guests regardless of date
         ],
         backgroundColor: [
           'rgba(251, 191, 36, 0.8)',
