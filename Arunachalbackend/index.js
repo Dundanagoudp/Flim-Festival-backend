@@ -13,6 +13,9 @@ import registrationRoutes from './routes/registrationRoutes.js';
 import submissionRoutes from './routes/submissionRoutes.js';
 import blogsRoute from './routes/blogsroute.js';
 import aboutUsRoute from './routes/aboutusRoute.js';
+import videoBlogRoute from './routes/videosRoutes.js';
+import workshopRoute from './routes/workshopRoute.js';
+import dashboardRoute from './routes/dashboardRoute.js';
 import nominationsRoutes from './routes/nominationRoutes.js';
 import homepageRoutes from './routes/HomepageRoutes.js';
 
@@ -53,8 +56,6 @@ app.use("/api/v1/events-schedule", eventRoutesV1)
 app.use("/api/v1/registration", registrationRoutes)
 app.use("/api/v1/submission", submissionRoutes)
 app.use("/api/v1/aboutus", aboutUsRoute)
-app.use("/api/v1/nominations", nominationsRoutes)
-app.use("/api/v1/homepage", homepageRoutes)
  
 app.get('/', (req, res) => {
     res.send('arunachal flim fetival backend is running')
