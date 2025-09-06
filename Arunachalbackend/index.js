@@ -14,6 +14,7 @@ import submissionRoutes from './routes/submissionRoutes.js';
 import blogsRoute from './routes/blogsroute.js';
 import aboutUsRoute from './routes/aboutusRoute.js';
 import videoBlogRoute from './routes/videosRoutes.js';
+import workshopRoute from './routes/workshopRoute.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -53,7 +54,7 @@ app.use("/api/v1/registration", registrationRoutes)
 app.use("/api/v1/submission", submissionRoutes)
 app.use("/api/v1/aboutus", aboutUsRoute)
 app.use("/api/v1/videos", videoBlogRoute)
- 
+app.use("/api/v1/workshop", workshopRoute)
 app.get('/', (req, res) => {
     res.send('arunachal flim fetival backend is running')
 })
