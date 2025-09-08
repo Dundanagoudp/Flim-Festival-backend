@@ -1,26 +1,88 @@
-// controllers/nomination.controller.js
+// controllers/nominationController.js
+import { bucket } from "../config/firebaseConfig.js";
 import Nomination, { NOMINATION_TYPES } from "../models/nominationModel.js";
 
 export const createNomination = async (req, res) => {
   try {
-    const { title, description, image, type } = req.body;
-
-    if (!title) {
-      return res.status(400).json({ error: "title is required" });
+    const {
+      title,
+      description = "",
+      type,
+      image: imageUrlFromBody, // optional: direct URL in body
+    } = req.body;
+console.log(req.body)
+    // Basic validations
+    if (!title || !type) {
+      return res
+        .status(400)
+        .json({ message: "Both title and type are required" });
     }
+    
     if (!NOMINATION_TYPES.includes(type)) {
-      return res.status(400).json({
-        error: `type must be one of: ${NOMINATION_TYPES.join(", ")}`,
+      return res.status(400).json({ message: "Invalid nomination type" });
+    }
+
+    let imageUrl = imageUrlFromBody || "";
+
+    // Handle file upload if a file was provided
+    if (req.file) {
+      const file = req.file;
+      const uniqueSuffix = `${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
+      const fileName = `nominations/${type}/${uniqueSuffix}-${file.originalname}`;
+      const fileUpload = bucket.file(fileName);
+
+      // Upload file to Firebase
+      imageUrl = await new Promise((resolve, reject) => {
+        const stream = fileUpload.createWriteStream({
+          metadata: { contentType: file.mimetype },
+        });
+
+        stream.on("error", reject);
+
+        stream.on("finish", async () => {
+          try {
+            await fileUpload.makePublic();
+            resolve(`https://storage.googleapis.com/${bucket.name}/${fileName}`);
+          } catch (e) {
+            reject(e);
+          }
+        });
+
+        stream.end(file.buffer);
       });
     }
 
-    const doc = await Nomination.create({ title, description, image, type });
-    return res.status(201).json(doc);
+    // If no image provided at all
+    if (!imageUrl && !req.file) {
+      return res
+        .status(400)
+        .json({ message: "Provide an image file or an image URL" });
+    }
+
+    // Create the nomination
+    const nomination = new Nomination({
+      title: String(title).trim(),
+      description: String(description).trim(),
+      type,
+      image: imageUrl,
+    });
+
+    await nomination.save();
+
+    return res
+      .status(201)
+      .json({ message: "Nomination created successfully", nomination });
   } catch (err) {
-    console.error("createNomination error:", err);
-    return res.status(500).json({ error: "Failed to create nomination" });
+    console.error("Create nomination error:", err);
+    return res
+      .status(500)
+      .json({ message: "Server error", error: err.message });
   }
 };
+
+
 
 
 export const listNominations = async (req, res) => {
@@ -70,9 +132,6 @@ export const listNominations = async (req, res) => {
   }
 };
 
-/**
- * Get single nomination by id
- */
 export const getNominationById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -85,36 +144,91 @@ export const getNominationById = async (req, res) => {
   }
 };
 
-/**
- * Update nomination by id
- * Body can include: { title?, description?, image?, type? }
- */
 export const updateNominationById = async (req, res) => {
   try {
     const { id } = req.params;
-    const payload = { ...req.body };
+    const {
+      title,
+      description,
+      type,
+      image: imageUrlFromBody,
+    } = req.body;
 
-    if (payload.type && !NOMINATION_TYPES.includes(payload.type)) {
-      return res.status(400).json({
-        error: `type must be one of: ${NOMINATION_TYPES.join(", ")}`,
+    // Check if nomination exists
+    const existingNomination = await Nomination.findById(id);
+    if (!existingNomination) {
+      return res.status(404).json({ error: "Nomination not found" });
+    }
+
+    // Prepare update payload
+    const payload = {};
+    
+    if (title !== undefined) payload.title = String(title).trim();
+    if (description !== undefined) payload.description = String(description).trim();
+    
+    // Validate type if provided
+    if (type) {
+      if (!NOMINATION_TYPES.includes(type)) {
+        return res.status(400).json({
+          error: `type must be one of: ${NOMINATION_TYPES.join(", ")}`,
+        });
+      }
+      payload.type = type;
+    }
+
+    let imageUrl = imageUrlFromBody || existingNomination.image;
+
+    // Handle file upload if a file was provided
+    if (req.file) {
+      const file = req.file;
+      const uniqueSuffix = `${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`;
+      const fileName = `nominations/${payload.type || existingNomination.type}/${uniqueSuffix}-${file.originalname}`;
+      const fileUpload = bucket.file(fileName);
+
+      // Upload file to Firebase
+      imageUrl = await new Promise((resolve, reject) => {
+        const stream = fileUpload.createWriteStream({
+          metadata: { contentType: file.mimetype },
+        });
+
+        stream.on("error", reject);
+
+        stream.on("finish", async () => {
+          try {
+            await fileUpload.makePublic();
+            resolve(`https://storage.googleapis.com/${bucket.name}/${fileName}`);
+          } catch (e) {
+            reject(e);
+          }
+        });
+
+        stream.end(file.buffer);
       });
     }
 
-    const doc = await Nomination.findByIdAndUpdate(id, payload, {
-      new: true,
-      runValidators: true,
-    });
-    if (!doc) return res.status(404).json({ error: "Nomination not found" });
-    return res.json(doc);
+    // Add image to payload if we have a new URL
+    if (imageUrl !== existingNomination.image) {
+      payload.image = imageUrl;
+    }
+
+    // Update the nomination
+    const updatedNomination = await Nomination.findByIdAndUpdate(
+      id,
+      payload,
+      {
+        new: true,
+        runValidators: true,
+      }
+    );
+
+    return res.json(updatedNomination);
   } catch (err) {
     console.error("updateNominationById error:", err);
     return res.status(500).json({ error: "Failed to update nomination" });
   }
 };
-
-/**
- * Delete nomination by id
- */
 export const deleteNominationById = async (req, res) => {
   try {
     const { id } = req.params;
