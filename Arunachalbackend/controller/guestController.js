@@ -181,7 +181,10 @@ export const getAllGuests = async (req, res) => {
         .sort({ 'year.value': -1, name: 1 });
 
       const groupedGuests = guests.reduce((acc, guest) => {
-        const yearValue = guest.year.value;
+        const yearValue = guest.year?.value;
+        if (yearValue === undefined) {
+          return acc;
+        }
         if (!acc.find(item => item._id === yearValue)) {
           acc.push({ _id: yearValue, guests: [] });
         }
@@ -214,7 +217,7 @@ export const getAllGuests = async (req, res) => {
         _id: guest._id,
         name: guest.name,
         role: guest.role,
-        year: guest.year.value,
+        year: guest.year ? guest.year.value : null,
         age: guest.age,
         description: guest.description,
         movies: guest.movies,
@@ -271,7 +274,7 @@ export const getSingleGuest = async (req, res) => {
       _id: guest._id,
       name: guest.name,
       role: guest.role,
-      year: guest.year.value,
+      year: guest.year ? guest.year.value : null,
       age: guest.age,
       description: guest.description,
       movies: guest.movies,
