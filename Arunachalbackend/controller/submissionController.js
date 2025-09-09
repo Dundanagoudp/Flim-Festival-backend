@@ -1,24 +1,17 @@
 import Submission from "../models/submissionModel.js";
 import { bucket } from "../config/firebaseConfig.js"; // your firebase setup
+import { notifyAdminsOfSubmission } from "../middleware/mailService.js";
 
 const createSubmission = async (req, res) => {
   try {
     let videoUrl = null;
 
     if (req.file) {
-      // Create a unique filename
       const fileName = `videos/${Date.now()}_${req.file.originalname}`;
       const file = bucket.file(fileName);
 
-      // Upload the buffer to Firebase
-      await file.save(req.file.buffer, {
-        metadata: { contentType: req.file.mimetype },
-      });
-
-      // Make it public (optional, depends on your rules)
-      await file.makePublic();
-
-      // Public URL
+      await file.save(req.file.buffer, { metadata: { contentType: req.file.mimetype } });
+      await file.makePublic(); // ensure your bucket/policy allows this
       videoUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
     }
 
@@ -27,12 +20,22 @@ const createSubmission = async (req, res) => {
       email: req.body.email,
       phone: req.body.phone,
       videoType: req.body.videoType,
-      videoFile: videoUrl || req.body.videoFile, // fallback to URL if provided
+      videoFile: videoUrl || req.body.videoFile, // fallback if URL provided
       message: req.body.message,
     };
 
     const newSubmission = new Submission(submissionData);
     const savedSubmission = await newSubmission.save();
+
+    // Notify admins (don’t block the response)
+    (async () => {
+      try {
+        await notifyAdminsOfSubmission(savedSubmission);
+      } catch (mailErr) {
+        console.error("Failed to send submission notification:", mailErr);
+      }
+    })();
+
     res.status(201).json(savedSubmission);
   } catch (error) {
     console.error("Error creating submission:", error);
