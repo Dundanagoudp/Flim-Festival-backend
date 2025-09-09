@@ -1,3 +1,4 @@
+import { notifyAdminsOfRegistration } from "../middleware/mailService.js";
 import User from "../models/userModel.js";
 import { generateToken } from "../utils/auth.js";
 import bcrypt from "bcryptjs";
@@ -33,7 +34,7 @@ const login = async (req, res) => {
         message: "Please provide email and password",
       });
     }
-
+    
     const user = await User.findOne({ email: email.trim().toLowerCase() }).select('+password');
     
     if (!user) {
