@@ -8,8 +8,8 @@ const userSchema = new mongoose.Schema({
     password: String,
     role: {
         type: String,
-        enum: ["admin", "user"],
-        default: "user",
+        enum: ["admin", "editor"],
+        default: "editor",
         },
 });
 dotenv.config();
