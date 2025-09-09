@@ -16,7 +16,7 @@ const videoBlogRoute = express.Router();
 videoBlogRoute.post(
   "/addVideoBLog",
   protect,
-  restrictTo("admin"),
+  restrictTo("admin", "editor"),
   addVideoBlog
 );
 videoBlogRoute.get("/getVideoBlog", getVideoBlog);
@@ -27,7 +27,7 @@ videoBlogRoute.get("/getVideoById/:videoId", getVideoBlogById);
 videoBlogRoute.put(
   "/updateVideo/:videoId",
   protect,
-  restrictTo("admin", "user"),
+  restrictTo("admin", "editor"),
   updateVideoBlog
 );
 videoBlogRoute.delete(

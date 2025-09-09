@@ -10,7 +10,7 @@ import upload from "../utils/multerMemory.js"; // the file we created above
 router.post("/createSubmission",  upload.single("videoFile"), createSubmission);
 router.get("/getAllSubmission",getAllSubmissions);
 router.get("/getSubmissionById/:id",getSubmissionById);
-router.put("/updateSubmissionById/:id",protect,restrictTo("admin"),updateSubmissions);
+router.put("/updateSubmissionById/:id",protect,restrictTo("admin,editor"),updateSubmissions);
 router.delete("/deleteSubmissionById/:id",protect,restrictTo("admin"),deleteSubmission);
 
 export default router;
