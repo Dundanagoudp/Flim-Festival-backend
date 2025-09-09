@@ -17,6 +17,7 @@ import workshopRoute from './routes/workshopRoute.js';
 import dashboardRoute from './routes/dashboardRoute.js';
 import nominationsRoutes from './routes/nominationRoutes.js';
 import homepageRoutes from './routes/HomepageRoutes.js';
+import contactUsRoutes from './routes/contactUsRoutes.js';
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -59,6 +60,8 @@ app.use("/api/v1/workshop", workshopRoute)
 app.use("/api/v1/dashboard", dashboardRoute)
 app.use("/api/v1/nominations", nominationsRoutes)
 app.use("/api/v1/homepage", homepageRoutes)
+
+app.use("/api/v1/contactus", contactUsRoutes)
  
 app.get('/', (req, res) => {
     res.send('arunachal flim fetival backend is running')
