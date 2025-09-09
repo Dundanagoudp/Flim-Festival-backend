@@ -153,12 +153,12 @@ const editUser = async (req, res) => {
 
     // Role-based editing permissions
     // Admin can edit any user, including role changes
-    // Regular users can only edit their own profile (except role)
+    // Regular editors can only edit their own profile (except role)
     if (currentUser.role !== "admin" && currentUser._id.toString() !== userId) {
       return res.status(403).json({ message: "You can only edit your own profile" });
     }
 
-    // Regular users cannot change their role
+    // Regular editors cannot change their role
     if (currentUser.role !== "admin" && role && role !== userToEdit.role) {
       return res.status(403).json({ message: "You cannot change your role" });
     }
