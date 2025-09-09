@@ -4,12 +4,9 @@ import { addWorkshop, deleteWorkshop, getWorkshop, updateWorkshop } from "../con
 
 const workshopRoute = express.Router();
 
-
 workshopRoute.post("/addWorkshop/:eventId",protect,restrictTo("admin"),addWorkshop);
-workshopRoute.post("/updateWorkshop/:workshopId",protect,restrictTo("admin","user"),updateWorkshop);
+workshopRoute.put("/updateWorkshop/:workshopId",protect,restrictTo("admin","editor"),updateWorkshop);
 workshopRoute.delete("/deleteWorkshop/:workshopId",protect,restrictTo("admin"),deleteWorkshop);
 workshopRoute.get("/getWorkshop",getWorkshop);
-
-
 
 export default workshopRoute;
