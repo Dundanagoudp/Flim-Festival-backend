@@ -60,8 +60,6 @@ export const updateEvent = async (req, res) => {
 
 // Create event; supports multipart/form-data with optional image
 export const addEvent = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
   try {
     const { name, description, year, month, startDate, endDate, location } = req.body;
 
@@ -73,7 +71,7 @@ export const addEvent = async (req, res) => {
     if (end <= start) throw new Error("End date must be after start date");
 
     // Only block exact duplicate names; allow overlapping dates
-    const conflictingEvent = await EventsCollection.findOne({ name }).session(session);
+    const conflictingEvent = await EventsCollection.findOne({ name });
 
     if (conflictingEvent) {
       throw new Error(`Event conflict: name already exists`);
@@ -101,7 +99,7 @@ export const addEvent = async (req, res) => {
       event.image = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
     }
 
-    await event.save({ session });
+    await event.save();
 
     const eventDayDocs = Array.from({ length: totalDays }, (_, i) => {
       const dayDate = new Date(start);
@@ -116,20 +114,16 @@ export const addEvent = async (req, res) => {
       };
     });
 
-    await EventDayCollection.insertMany(eventDayDocs, { session });
+    await EventDayCollection.insertMany(eventDayDocs);
 
-    await session.commitTransaction();
     res.status(201).json({ success: true, eventId: event._id, image: event.image });
   } catch (error) {
-    await session.abortTransaction();
     const statusCode = error.message.includes("Invalid")
       ? 400
       : error.message.includes("conflict")
       ? 409
       : 500;
     res.status(statusCode).json({ success: false, error: error.message });
-  } finally {
-    session.endSession();
   }
 };
 
