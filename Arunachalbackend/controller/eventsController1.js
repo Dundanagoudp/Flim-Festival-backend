@@ -565,3 +565,56 @@ export const deleteEventDayImage = async (req, res) => {
 };
 
 
+
+// Get today's event if within any event's date range; otherwise latest past event
+export const getTodayOrLatestEvent = async (req, res) => {
+  try {
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    // Try to find an ongoing event for today
+    let event = await EventsCollection.findOne({
+      startDate: { $lte: todayEnd },
+      endDate: { $gte: todayStart },
+    }).sort({ startDate: -1 });
+
+    if (!event) {
+      // If none ongoing, find the nearest upcoming event
+      event = await EventsCollection.findOne({ startDate: { $gte: todayStart } }).sort({ startDate: 1 });
+    }
+
+    if (!event) {
+      // If no upcoming, get the most recent past event
+      event = await EventsCollection.findOne({ endDate: { $lt: todayStart } }).sort({ endDate: -1 });
+      if (!event) {
+        return res.status(404).json({ message: "No events available" });
+      }
+    }
+
+    // Fetch all days of the selected event
+    const eventDays = await EventDayCollection.find({ event_ref: event._id });
+
+    // Fetch all time slots for the event, with populated day_ref to mirror example
+    const timeSlots = await TimeCollection.find({ event_ref: event._id }).populate("day_ref");
+
+    // Structure days with their timeSlots
+    const structuredDays = eventDays
+      .map((day) => ({
+        ...day.toObject(),
+        timeSlots: timeSlots
+          .filter((slot) => slot.day_ref && String(slot.day_ref._id) === String(day._id))
+          .sort((a, b) => {
+            const toDate = (t) => (t ? new Date(`1970-01-01T${t}`) : 0);
+            return toDate(a.startTime) - toDate(b.startTime);
+          }),
+      }))
+      .sort((a, b) => a.dayNumber - b.dayNumber);
+
+    return res.status(200).json({ event, days: structuredDays });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
