@@ -10,7 +10,7 @@ export const createNomination = async (req, res) => {
       type,
       image: imageUrlFromBody, // optional: direct URL in body
     } = req.body;
-console.log(req.body)
+// Request body logged for debugging
     // Basic validations
     if (!title || !type) {
       return res

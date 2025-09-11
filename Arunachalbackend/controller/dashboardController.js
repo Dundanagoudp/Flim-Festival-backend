@@ -192,7 +192,7 @@ export const getAreaChartData = async (req, res) => {
       ])
     ]);
 
-    // Format data for chart
+    // Format data for chart - only send data, let frontend handle styling
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
     const chartData = {
       labels: months,
@@ -203,8 +203,6 @@ export const getAreaChartData = async (req, res) => {
             const data = submissionData.find(d => d._id.month === index + 1);
             return data ? data.count : Math.floor(Math.random() * 20) + 5;
           }),
-          backgroundColor: 'rgba(20, 184, 166, 0.2)',
-          borderColor: 'rgba(20, 184, 166, 1)',
           fill: true
         },
         {
@@ -213,8 +211,6 @@ export const getAreaChartData = async (req, res) => {
             const data = registrationData.find(d => d._id.month === index + 1);
             return data ? data.count : Math.floor(Math.random() * 30) + 10;
           }),
-          backgroundColor: 'rgba(251, 191, 36, 0.2)',
-          borderColor: 'rgba(251, 191, 36, 1)',
           fill: true
         }
       ]
@@ -253,15 +249,9 @@ export const getBarChartData = async (req, res) => {
       Award.countDocuments() // Count all awards regardless of date
     ]);
 
-    // Debug logging
-    console.log('Bar chart counts:', {
-      blogs: blogData,
-      submissions: submissionData,
-      events: eventData,
-      awards: awardData
-    });
+    // Data counts for bar chart
 
-    // Format data for horizontal bar chart
+    // Format data for horizontal bar chart - only send data, let frontend handle styling
     const chartData = {
       labels: ['Blogs', 'Submissions', 'Events', 'Awards', 'Guests'],
       datasets: [{
@@ -272,22 +262,7 @@ export const getBarChartData = async (req, res) => {
           eventData,
           awardData,
           await Guest.countDocuments() // Count all guests regardless of date
-        ],
-        backgroundColor: [
-          'rgba(251, 191, 36, 0.8)',
-          'rgba(20, 184, 166, 0.8)',
-          'rgba(59, 130, 246, 0.8)',
-          'rgba(251, 191, 36, 0.8)',
-          'rgba(249, 115, 22, 0.8)'
-        ],
-        borderColor: [
-          'rgba(251, 191, 36, 1)',
-          'rgba(20, 184, 166, 1)',
-          'rgba(59, 130, 246, 1)',
-          'rgba(251, 191, 36, 1)',
-          'rgba(249, 115, 22, 1)'
-        ],
-        borderWidth: 1
+        ]
       }]
     };
 
@@ -343,27 +318,14 @@ export const getPieChartData = async (req, res) => {
 
     const totalSubmissions = submissionData.reduce((sum, item) => sum + item.count, 0) || 186;
 
-    // Format data for pie chart
+    // Format data for pie chart - only send data, let frontend handle styling
     const chartData = {
       labels: ['Short Film', 'Documentary'],
       datasets: [{
         data: [
           submissionData.find(d => d._id === 'Short Film')?.count || 120,
           submissionData.find(d => d._id === 'Documentary')?.count || 66
-        ],
-        backgroundColor: [
-          'rgba(251, 191, 36, 0.8)',
-          'rgba(249, 115, 22, 0.8)',
-          'rgba(20, 184, 166, 0.8)',
-          'rgba(59, 130, 246, 0.8)'
-        ],
-        borderColor: [
-          'rgba(251, 191, 36, 1)',
-          'rgba(249, 115, 22, 1)',
-          'rgba(20, 184, 166, 1)',
-          'rgba(59, 130, 246, 1)'
-        ],
-        borderWidth: 2
+        ]
       }]
     };
 
@@ -414,7 +376,7 @@ export const getRadarChartData = async (req, res) => {
 
     const months = ['January', 'February', 'March', 'April', 'May', 'June'];
     
-    // Format data for radar chart
+    // Format data for radar chart - only send data, let frontend handle styling
     const chartData = {
       labels: months,
       datasets: [{
@@ -422,13 +384,7 @@ export const getRadarChartData = async (req, res) => {
         data: months.map((_, index) => {
           const monthData = monthlyData.find(d => d._id.month === index + 1);
           return monthData ? monthData.count : Math.floor(Math.random() * 10) + 5;
-        }),
-        backgroundColor: 'rgba(251, 191, 36, 0.2)',
-        borderColor: 'rgba(251, 191, 36, 1)',
-        pointBackgroundColor: 'rgba(251, 191, 36, 1)',
-        pointBorderColor: '#fff',
-        pointHoverBackgroundColor: '#fff',
-        pointHoverBorderColor: 'rgba(251, 191, 36, 1)'
+        })
       }]
     };
 
