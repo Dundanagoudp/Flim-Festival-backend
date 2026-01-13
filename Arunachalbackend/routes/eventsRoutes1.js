@@ -19,6 +19,7 @@ import {
   updateEvent,
   getEventById,
   getTodayOrLatestEvent,
+  getEventDetailsById,
 } from "../controller/eventsController1.js";
 
 const eventRoute = express.Router();
@@ -74,6 +75,7 @@ eventRoute.get("/getTime", protect, restrictTo("admin", "user"), getTime);
 eventRoute.get("/getFullEvent", getFullEventDetails);
 eventRoute.get("/event/:eventId", getEventById);
 eventRoute.get("/today-or-latest", getTodayOrLatestEvent);
+eventRoute.get("/eventDetails/:eventId", getEventDetailsById);
 
 export default eventRoute;
 

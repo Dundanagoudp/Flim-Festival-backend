@@ -1,7 +1,7 @@
 import { Blog, BlogCategory } from "../models/blogsModel.js";
-import { bucket } from "../config/firebaseConfig.js";
-import multer from "multer";
 
+import multer from "multer";
+import { saveBufferToLocal, deleteLocalByUrl } from "../utils/fileStorage.js";
 const storage = multer.memoryStorage();
 const upload = multer({ storage }).single("image");
 
@@ -77,15 +77,8 @@ export const createBlog = async (req, res) => {
 
     let imageUrl;
     if (req.file && req.file.buffer) {
-      const fileName = `blogs/${Date.now()}-${req.file.originalname}`;
-      const fileUpload = bucket.file(fileName);
-      await new Promise((resolve, reject) => {
-        const stream = fileUpload.createWriteStream({ metadata: { contentType: req.file.mimetype } });
-        stream.on("error", reject);
-        stream.on("finish", async () => { try { await fileUpload.makePublic(); resolve(); } catch (e) { reject(e); } });
-        stream.end(req.file.buffer);
-      });
-      imageUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+      imageUrl = await saveBufferToLocal(req.file, "blogs");
+     
     }
 
     if (contentType === "link" && !link) return res.status(400).json({ message: "link is required for link type" });
@@ -143,18 +136,9 @@ export const updateBlog = async (req, res) => {
     if (req.file && req.file.buffer) {
       // delete old
       if (imageUrl) {
-        const filePath = imageUrl.split(`https://storage.googleapis.com/${bucket.name}/`)[1];
-        if (filePath) await bucket.file(filePath).delete().catch(() => {});
+        await deleteLocalByUrl(imageUrl);
       }
-      const fileName = `blogs/${Date.now()}-${req.file.originalname}`;
-      const fileUpload = bucket.file(fileName);
-      await new Promise((resolve, reject) => {
-        const stream = fileUpload.createWriteStream({ metadata: { contentType: req.file.mimetype } });
-        stream.on("error", reject);
-        stream.on("finish", async () => { try { await fileUpload.makePublic(); resolve(); } catch (e) { reject(e); } });
-        stream.end(req.file.buffer);
-      });
-      imageUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+      imageUrl = await saveBufferToLocal(req.file, "blogs");
     }
 
     const updated = await Blog.findByIdAndUpdate(id, { ...req.body, imageUrl }, { new: true });
@@ -171,8 +155,7 @@ export const deleteBlog = async (req, res) => {
     const existing = await Blog.findById(id);
     if (!existing) return res.status(404).json({ message: "Blog not found" });
     if (existing.imageUrl) {
-      const filePath = existing.imageUrl.split(`https://storage.googleapis.com/${bucket.name}/`)[1];
-      if (filePath) await bucket.file(filePath).delete().catch(() => {});
+      await deleteLocalByUrl(existing.imageUrl);
     }
     await Blog.findByIdAndDelete(id);
     res.status(200).json({ message: "Blog deleted" });

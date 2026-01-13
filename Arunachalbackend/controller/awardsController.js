@@ -1,5 +1,6 @@
 import { Award, AwardCategory } from "../models/awardsModel.js";
-import { bucket } from "../config/firebaseConfig.js";
+
+import { saveMultipleToLocal, saveBufferToLocal, deleteLocalByUrl } from "../utils/fileStorage.js";
 
 // Category management functions
 const createAwardCategory = async (req, res) => {
@@ -77,56 +78,43 @@ const deleteAwardCategory = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
+const handleFileUpload = () => {
+  return new Promise((resolve, reject) => {
+    uploads(req, res, (err) => {
+      if (err) {
+        console.error("Multer error:", err);
+        return reject(new Error("File upload failed: " + err.message));
+      }
+      resolve();
+    });
+  });
+};
 const createAwards = async (req, res) => {
   try {
+
     const { title, description, rule1, rule2, rule3, category } = req.body;
+   
+    if (!title) return res.status(400).json({ message: "Title is required" });
+    if (!category) return res.status(400).json({ message: "Category is required" });
 
-    // Validate category
-    if (!category) {
-      return res.status(400).json({ message: "Category is required" });
-    }
-    
     const categoryExists = await AwardCategory.findById(category);
-    if (!categoryExists) {
-      return res.status(400).json({ message: "Invalid category" });
-    }
+    if (!categoryExists) return res.status(400).json({ message: "Invalid category" });
 
-    let mainImageUrl = null;
+    let mainImageUrl = "";
     let arrayImageUrls = [];
 
-    // Handle main image (single file)
-    if (req.files && req.files.image && req.files.image[0]) {
-      const mainFile = req.files.image[0];
-      const fileName = `awards/${Date.now()}_${mainFile.originalname}`;
-      const file = bucket.file(fileName);
-
-      await file.save(mainFile.buffer, {
-        metadata: { contentType: mainFile.mimetype },
-      });
-
-      await file.makePublic();
-      mainImageUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+    // Single main image
+    if (req.files?.image?.[0]) {
+      mainImageUrl = await saveBufferToLocal(req.files.image[0], "awards");
     }
 
-    // Handle array images (multiple files)
-    if (req.files && req.files.array_images) {
+    // Multiple images (ensure the helper returns the saved URL)
+    if (req.files?.array_images?.length) {
       arrayImageUrls = await Promise.all(
-        req.files.array_images.map(async (img) => {
-          const fileName = `awards/${Date.now()}_${img.originalname}`;
-          const file = bucket.file(fileName);
-
-          await file.save(img.buffer, {
-            metadata: { contentType: img.mimetype },
-          });
-
-          await file.makePublic();
-          return `https://storage.googleapis.com/${bucket.name}/${fileName}`;
-        })
+        req.files.array_images.map((img) => saveBufferToLocal(img, "awards"))
       );
     }
-
-    const newAwards = new Award({
+    const newAward = await Award.create({
       title,
       description,
       image: mainImageUrl,
@@ -137,12 +125,19 @@ const createAwards = async (req, res) => {
       category,
     });
 
-    const savedAward = await newAwards.save();
-    const populatedAward = await Award.findById(savedAward._id).populate("category", "name");
-    res.status(201).json(populatedAward);
+    const populatedAward = await Award.findById(newAward._id).populate("category", "name");
+       return res.status(201).json({
+      success: true,
+      message: "Award created successfully",
+      data: populatedAward,
+    });
   } catch (error) {
-    console.error("Error creating awards:", error);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error creating award:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: error.message,
+    });
   }
 };
 
@@ -180,47 +175,43 @@ const updateAwards = async (req, res) => {
     try {
         const { title, description, rule1, rule2, rule3, category } = req.body;
         const updateData = { title, description, rule1, rule2, rule3 };
-
+        const existing = await Award.findById(req.params.id);
+        if (!existing) return res.status(404).json({ message: "Awards not found" });
         // Validate category if provided
         if (category) {
             const categoryExists = await AwardCategory.findById(category);
             if (!categoryExists) {
                 return res.status(400).json({ message: "Invalid category" });
             }
+         
             updateData.category = category;
         }
 
         // Handle main image update if new file is uploaded
-        if (req.files && req.files.image && req.files.image[0]) {
-            const mainFile = req.files.image[0];
-            const fileName = `awards/${Date.now()}_${mainFile.originalname}`;
-            const file = bucket.file(fileName);
-
-            await file.save(mainFile.buffer, {
-                metadata: { contentType: mainFile.mimetype },
-            });
-
-            await file.makePublic();
-            updateData.image = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+        if (req.files?.image?.[0]) {
+          // save new first
+          const mainFile = req.files.image[0];
+          const newMainUrl = await saveBufferToLocal(mainFile, "awards");
+          updateData.image = newMainUrl;
+          // delete old if exists
+          if (existing.image) await deleteLocalByUrl(existing.image);
         }
 
         // Handle array images update if new files are uploaded
-        if (req.files && req.files.array_images && req.files.array_images.length > 0) {
-            const arrayImageUrls = await Promise.all(
-                req.files.array_images.map(async (img) => {
-                    const fileName = `awards/${Date.now()}_${img.originalname}`;
-                    const file = bucket.file(fileName);
 
-                    await file.save(img.buffer, {
-                        metadata: { contentType: img.mimetype },
-                    });
-
-                    await file.makePublic();
-                    return `https://storage.googleapis.com/${bucket.name}/${fileName}`;
-                })
-            );
-            updateData.array_images = arrayImageUrls;
-        }
+    if (req.files?.array_images?.length) {
+      // save all new images
+      const newArrayUrls = await Promise.all(
+        req.files.array_images.map(async (img) => {
+          return await saveBufferToLocal(img, "awards");
+        })
+      );
+      updateData.array_images = newArrayUrls;
+      // delete old array images
+      if (Array.isArray(existing.array_images) && existing.array_images.length) {
+        await Promise.all(existing.array_images.map((url) => deleteLocalByUrl(url)));
+      }
+    }
 
         const updatedAwards = await Award.findByIdAndUpdate(
             req.params.id, 
@@ -244,6 +235,8 @@ const deleteAwards = async (req, res) => {
         if (!deletedAwards) {
             return res.status(404).json({ message: "Awards not found" });
         }
+        await deleteLocalByUrl(deletedAwards.image);
+        await deleteLocalByUrl(deletedAwards.array_images);
         res.status(200).json({ message: "Awards deleted successfully" });
     } catch (error) {
         console.error("Error deleting awards:", error);

@@ -1,5 +1,5 @@
 import Submission from "../models/submissionModel.js";
-import { bucket } from "../config/firebaseConfig.js"; // your firebase setup
+import { saveBufferToLocal , deleteLocalByUrl } from "../utils/fileStorage.js";
 import { notifyAdminsOfSubmission } from "../middleware/mailService.js";
 
 const createSubmission = async (req, res) => {
@@ -7,12 +7,8 @@ const createSubmission = async (req, res) => {
     let videoUrl = null;
 
     if (req.file) {
-      const fileName = `videos/${Date.now()}_${req.file.originalname}`;
-      const file = bucket.file(fileName);
-
-      await file.save(req.file.buffer, { metadata: { contentType: req.file.mimetype } });
-      await file.makePublic(); // ensure your bucket/policy allows this
-      videoUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+      const fileName = await saveBufferToLocal(req.file, "videos");
+        videoUrl = fileName;
     }
 
     const submissionData = {
@@ -69,6 +65,7 @@ const getAllSubmissions = async (req, res) => {
 const deleteSubmission = async (req, res) => {
     try {
         const deletedSubmission = await Submission.findByIdAndDelete(req.params.id);
+        await deleteLocalByUrl(deletedSubmission.videoFile);
         if (!deletedSubmission) {
             return res.status(404).json({ message: "Submission not found" });
         }
@@ -80,16 +77,44 @@ const deleteSubmission = async (req, res) => {
 };
 
 const updateSubmissions = async (req, res) => {
-    try {
-        const updatedSubmission = await Submission.findByIdAndUpdate(req.params.id, req.body, { new: true });
-        if (!updatedSubmission) {
-            return res.status(404).json({ message: "Submission not found" });
-        }
-        res.status(200).json(updatedSubmission);
-    } catch (error) {
-        console.error("Error updating submission:", error);
-        res.status(500).json({ message: "Server error" });
+  try {
+
+    const submission = await Submission.findById(req.params.id);
+    if (!submission) {
+      return res.status(404).json({ message: "Submission not found" });
     }
+
+    const updateData = { ...req.body };
+
+    if (req.file) {
+      // Delete old file only if it exists
+      if (submission.videoFile) {
+        try {
+          await deleteLocalByUrl(submission.videoFile);
+        } catch (err) {
+
+          console.warn("Failed to delete old file:", err);
+        }
+      }
+
+    
+      const savedPath = await saveBufferToLocal(req.file, "videos");
+      updateData.videoFile = savedPath;
+    }
+
+    // Update the document and return the new version
+    const updatedSubmission = await Submission.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true }
+    );
+
+    res.status(200).json(updatedSubmission);
+  } catch (error) {
+    console.error("Error updating submission:", error);
+    res.status(500).json({ message: "Server error" });
+  }
 };
+
 
 export { createSubmission, getSubmissionById, getAllSubmissions, deleteSubmission, updateSubmissions };

@@ -1,71 +1,52 @@
 import Workshop from "../models/workshopModel.js";
-import { bucket } from "../config/firebaseConfig.js";
 import multer from "multer";
-import path from "path";
+import { saveBufferToLocal , deleteLocalByUrl } from "../utils/fileStorage.js";
+
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage }).single("imageUrl");
 
 export const addWorkshop = async (req, res) => {
-  const handleFileUpload = () => {
-    return new Promise((resolve, reject) => {
-      upload(req, res, (err) => {
-        if (err) {
-          console.error("Multer error:", err);
-          return reject(new Error("File upload failed: " + err.message));
-        }
-        resolve();
-      });
-    });
-  };
   try {
-    await handleFileUpload();
+    // run multer upload once (reject on error)
+    if (req.is?.("multipart/form-data")) {
+      await new Promise((resolve, reject) =>
+        upload(req, res, (err) => (err ? reject(err) : resolve()))
+      );
+    }
+
     const { eventId } = req.params;
     const { name, about, registrationFormUrl } = req.body;
     const file = req.file;
+
+    // basic validation
+    if (!eventId) return res.status(400).json({ message: "eventId is required in params" });
+    if (!name) return res.status(400).json({ message: "name is required" });
+
     let imageUrl = "";
-    if (file) {
-      const fileName = Date.now() + path.extname(file.originalname);
-      const destination = `WorkShop/${fileName}`;
-      const fileUpload = bucket.file(destination);
+    console.log("File received:", file);
+    if (file?.buffer) {
 
-      // Upload the file to Google Cloud Storage
-      await new Promise((resolve, reject) => {
-        const stream = fileUpload.createWriteStream({
-          metadata: {
-            contentType: file.mimetype,
-          },
-        });
-
-        stream.on("error", reject);
-
-        stream.on("finish", async () => {
-          try {
-            await fileUpload.makePublic();
-            imageUrl = `https://storage.googleapis.com/${bucket.name}/${destination}`;
-            resolve();
-          } catch (error) {
-            reject(error);
-          }
-        });
-
-        stream.end(file.buffer);
-      });
+       imageUrl = await saveBufferToLocal(file, `workshop`);
     }
+
     const workshop = new Workshop({
       eventRef: eventId,
       name,
       about,
-      imageUrl,
+      imageUrl ,
       registrationFormUrl,
     });
-    await workshop.save();
-    res.status(200).json({ message: "Workshop added successfully" });
+
+    await workshop.save({ validateBeforeSave: false });
+    return res.status(201).json({ message: "Workshop added successfully", workshop });
   } catch (error) {
-    console.error("Error adding workshop:", error.message);
-    res.status(500).json({ message: "Server error" });
+    console.error("Error adding workshop:", error);
+    // surface the real error message for easier debugging (remove in prod)
+    return res.status(500).json({ message: "Server error", error: error?.message || String(error) });
   }
 };
+
 
 export const getWorkshop = async (req, res) => {
   try {
@@ -77,16 +58,12 @@ export const getWorkshop = async (req, res) => {
   }
 };
 export const updateWorkshop = async (req, res) => {
-  const handleFileUpload = () => {
-    return new Promise((resolve, reject) => {
-      upload(req, res, (err) => {
-        if (err) return reject(err);
-        resolve();
-      });
-    });
-  };
   try {
-    await handleFileUpload();
+    if (req.is?.("multipart/form-data")) {
+      await new Promise((resolve, reject) =>
+        upload(req, res, (err) => (err ? reject(err) : resolve()))
+      );
+    }
     const { workshopId } = req.params;
     const { name, about, registrationFormUrl } = req.body;
     const workshop = await Workshop.findById(workshopId);
@@ -97,38 +74,12 @@ export const updateWorkshop = async (req, res) => {
     let newImageUrl = workshop.imageUrl;
     if (file && file.buffer) {
       if (workshop.imageUrl) {
-        const oldFileName = workshop.imageUrl.split("/").pop();
-        await bucket
-          .file(oldFileName)
-          .delete()
-          .catch((err) => {
-            console.warn("Old image delete warning:", err.message);
-          });
-        const newFileName = `${Date.now()}${path.extname(file.originalname)}`;
-        const destination = `Workshop/${newFileName}`;
-        const fileUpload = bucket.file(destination);
-
-        await new Promise((resolve, reject) => {
-          const stream = fileUpload.createWriteStream({
-            metadata: {
-              contentType: file.mimetype,
-            },
-          });
-
-          stream.on("error", reject);
-          stream.on("finish", async () => {
-            try {
-              await fileUpload.makePublic();
-              newImageUrl = `https://storage.googleapis.com/${bucket.name}/${destination}`;
-              resolve();
-            } catch (error) {
-              reject(error);
-            }
-          });
-
-          stream.end(file.buffer);
-        });
+        await deleteLocalByUrl(workshop.imageUrl);
       }
+
+
+      newImageUrl = await saveBufferToLocal(file, "WorkShop");
+     
     }
 
     const updatedworkshop = await Workshop.findByIdAndUpdate(
@@ -158,16 +109,7 @@ export const deleteWorkshop = async (req, res) => {
       return res.status(404).json({ message: "Workshop not found" });
     }
     if (workshop.imageUrl) {
-      const fileName = workshop.imageUrl.split("/").pop();
-      await bucket
-        .file(fileName)
-        .delete()
-        .catch((err) => {
-          console.warn(
-            "Warning: Failed to delete image from Firebase:",
-            err.message
-          );
-        });
+      await deleteLocalByUrl(workshop.imageUrl);
     }
     await Workshop.findByIdAndDelete(workshopId);
     res.status(200).json({ message: "Workshop deleted successfully" });

@@ -1,63 +1,63 @@
 import Gallery from "../models/galleryModel.js";
 import GalleryYear from "../models/galleryYearModel.js";
-import { bucket } from "../config/firebaseConfig.js";
 import multer from "multer";
+import { deleteLocalByUrl, saveBufferToLocal, saveMultipleToLocal } from "../utils/fileStorage.js";
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage }).fields([
   { name: 'photo', maxCount: 10 },
   { name: 'photos', maxCount: 10 }
-]); 
+]);
 
 export const addGalleryImage = async (req, res) => {
-  const handleUpload = () => new Promise(resolve => {
-    if (req.is && req.is("multipart/form-data")) { upload(req, res, () => resolve()); } else { resolve(); }
-  });
   try {
-    await handleUpload();
+    // Handle multipart form data upload once
+    if (req.is?.("multipart/form-data")) {
+      await new Promise((resolve, reject) =>
+        upload(req, res, (err) => (err ? reject(err) : resolve()))
+      );
+    }
+
     const { caption, year, photo: photoUrlFromBody } = req.body;
+
+    // Debug logging
+    console.log("Request body:", req.body);
+    console.log("Request files:", req.files);
+    console.log("Photo URL from body:", photoUrlFromBody);
+
     if (!year) return res.status(400).json({ message: "year is required" });
+
     const yearDoc = await GalleryYear.findById(year);
     if (!yearDoc) return res.status(400).json({ message: "Invalid year" });
 
     // Get files from both 'photo' and 'photos' fields
-    const photoFiles = req.files?.photo || [];
-    const photosFiles = req.files?.photos || [];
-    const allFiles = [...photoFiles, ...photosFiles];
+    const files = [];
+    if (req.file) files.push(req.file);
+    if (req.files) {
+      // If a concrete named field returns array
+      if (Array.isArray(req.files.photo)) files.push(...req.files.photo);
+      else if (req.files.photo) files.push(req.files.photo);
     
-    let photoUrls = [];
-    
-    // Handle multiple files - UPLOAD IN PARALLEL for better performance
-    if (allFiles && allFiles.length > 0) {
-      const uploadPromises = allFiles.map(async (file) => {
-        const fileName = `gallery/${yearDoc.value}/${Date.now()}-${Math.random()}-${file.originalname}`;
-        const fileUpload = bucket.file(fileName);
-        
-        return new Promise((resolve, reject) => {
-          const stream = fileUpload.createWriteStream({ metadata: { contentType: file.mimetype } });
-          stream.on("error", reject);
-          stream.on("finish", async () => { 
-            try { 
-              await fileUpload.makePublic(); 
-              resolve(`https://storage.googleapis.com/${bucket.name}/${fileName}`);
-            } catch (e) { 
-              reject(e); 
-            } 
-          });
-          stream.end(file.buffer);
-        });
-      });
-      
-      // Wait for all uploads to complete in parallel
-      photoUrls = await Promise.all(uploadPromises);
+      if (Array.isArray(req.files.photos)) files.push(...req.files.photos);
+      else if (req.files.photos) files.push(req.files.photos);
     }
-    
+
+
+    const photoUrls = [];
+    if (files.length > 0) {
+      const saves = await Promise.all(
+        files.map((f) => saveBufferToLocal(f, "gallery")) // returns single path per file
+      );
+      photoUrls.push(...saves.filter(Boolean));
+    }
+
     // Handle single photo URL from body
-    if (photoUrlFromBody) {
-      photoUrls.push(photoUrlFromBody);
+    if (photoUrlFromBody) photoUrls.push(photoUrlFromBody);
+    console.log("Final photo URLs:", photoUrls);
+
+    if (photoUrls.length === 0) {
+      return res.status(400).json({ message: "Provide photo files or photo URL" });
     }
-    
-    if (photoUrls.length === 0) return res.status(400).json({ message: "Provide photo files or photo URL" });
 
     // Create gallery entries in bulk for better performance
     const galleryData = photoUrls.map(photoUrl => ({
@@ -65,9 +65,9 @@ export const addGalleryImage = async (req, res) => {
       year: yearDoc._id,
       photo: photoUrl
     }));
-    
+
     const items = await Gallery.insertMany(galleryData);
-    
+
     res.status(201).json({ message: `${items.length} image(s) added`, items });
   } catch (err) {
     console.error("Add gallery image error:", err);
@@ -84,7 +84,7 @@ export const getGalleryGroupedByYear = async (_req, res) => {
       if (!map.has(y)) map.set(y, []);
       map.get(y).push({ _id: it._id, caption: it.caption, photo: it.photo });
     });
-    const result = Array.from(map.entries()).map(([yearValue, images]) => ({ year: yearValue, images })).sort((a,b) => b.year - a.year);
+    const result = Array.from(map.entries()).map(([yearValue, images]) => ({ year: yearValue, images })).sort((a, b) => b.year - a.year);
     res.status(200).json(result);
   } catch (err) {
     console.error("Get gallery grouped error:", err);
@@ -117,8 +117,7 @@ export const deleteGalleryImage = async (req, res) => {
     const item = await Gallery.findByIdAndDelete(id);
     if (!item) return res.status(404).json({ message: "Image not found" });
     if (item.photo) {
-      const filePath = item.photo.split(`https://storage.googleapis.com/${bucket.name}/`)[1];
-      if (filePath) await bucket.file(filePath).delete().catch(() => {});
+      await deleteLocalByUrl(item.photo);
     }
     res.status(200).json({ message: "Image deleted" });
   } catch (err) {
@@ -144,20 +143,17 @@ export const bulkDeleteImages = async (req, res) => {
     // Delete files from Firebase
     const deletePromises = images.map(async (image) => {
       if (image.photo) {
-        const filePath = image.photo.split(`https://storage.googleapis.com/${bucket.name}/`)[1];
-        if (filePath) {
-          return bucket.file(filePath).delete().catch(() => {});
-        }
+        await deleteLocalByUrl(image.photo);
       }
     });
     await Promise.all(deletePromises);
 
     // Delete from database
     const result = await Gallery.deleteMany({ _id: { $in: imageIds } });
-    
-    res.status(200).json({ 
+
+    res.status(200).json({
       message: `${result.deletedCount} image(s) deleted successfully`,
-      deletedCount: result.deletedCount 
+      deletedCount: result.deletedCount
     });
   } catch (err) {
     console.error("Bulk delete images error:", err);
@@ -211,7 +207,7 @@ export const updateYear = async (req, res) => {
       if (yearNumber < 1900 || yearNumber > 2100) {
         return res.status(400).json({ message: "value must be between 1900 and 2100" });
       }
-      
+
       // Check if new value already exists (excluding current year)
       if (yearNumber !== year.value) {
         const exists = await GalleryYear.findOne({ value: yearNumber });
@@ -250,8 +246,8 @@ export const deleteYear = async (req, res) => {
     // Check if year has associated images
     const imageCount = await Gallery.countDocuments({ year: id });
     if (imageCount > 0) {
-      return res.status(400).json({ 
-        message: `Cannot delete year. It has ${imageCount} associated image(s). Delete images first.` 
+      return res.status(400).json({
+        message: `Cannot delete year. It has ${imageCount} associated image(s). Delete images first.`
       });
     }
 

@@ -1,38 +1,13 @@
 // controllers/HomepageController.js
 import Homepage from "../models/HomepageModel.js";
-import { bucket } from "../config/firebaseConfig.js";
-import { v4 as uuidv4 } from "uuid";
+
+import { deleteLocalByUrl, saveBufferToLocal } from "../utils/fileStorage.js";
 
 /**
  * Upload a Multer in-memory file buffer to Firebase Storage.
  * Returns a public download URL that works with Uniform Bucket-Level Access.
  */
-async function uploadVideoToFirebase(file, folder = "homepage") {
-  const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const safeName = file.originalname.replace(/\s+/g, "_");
-  const filePath = `${folder}/${unique}-${safeName}`;
 
-  const token = uuidv4();
-  const blob = bucket.file(filePath);
-
-  await blob.save(file.buffer, {
-    metadata: {
-      contentType: file.mimetype || "application/octet-stream",
-      metadata: {
-        firebaseStorageDownloadTokens: token,
-      },
-    },
-    resumable: false, // single-shot upload from buffer
-    validation: "md5",
-  });
-
-  // Public URL with token
-  const publicUrl =
-    `https://firebasestorage.googleapis.com/v0/b/${bucket.name}/o/` +
-    `${encodeURIComponent(filePath)}?alt=media&token=${token}`;
-
-  return { publicUrl, filePath, token };
-}
 
 export const createHomepage = async (req, res) => {
   try {
@@ -45,8 +20,7 @@ export const createHomepage = async (req, res) => {
     let videoUrl = videoUrlFromBody || "";
 
     if (req.file) {
-      const { publicUrl } = await uploadVideoToFirebase(req.file, "homepage");
-      videoUrl = publicUrl;
+      videoUrl = await saveBufferToLocal(req.file, "homepage");
     }
 
     const homepage = await Homepage.create({
@@ -101,8 +75,8 @@ export const updateHomepage = async (req, res) => {
     // Decide video URL:
     let videoUrl = existing.video;
     if (req.file) {
-      const { publicUrl } = await uploadVideoToFirebase(req.file, "homepage");
-      videoUrl = publicUrl;
+      await deleteLocalByUrl(existing.video);
+      videoUrl = await saveBufferToLocal(req.file, "homepage");
     } else if (typeof req.body.video !== "undefined") {
       // allow direct URL override
       videoUrl = String(req.body.video).trim();
@@ -126,6 +100,7 @@ export const deleteHomepage = async (req, res) => {
   try {
     const { id } = req.params;
     const homepage = await Homepage.findByIdAndDelete(id);
+    await deleteLocalByUrl(homepage.video);
     if (!homepage) return res.status(404).json({ error: "Homepage not found" });
     res.status(200).json(homepage);
   } catch (error) {
