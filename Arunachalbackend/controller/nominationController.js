@@ -1,6 +1,7 @@
 // controllers/nominationController.js
-import { bucket } from "../config/firebaseConfig.js";
+import { saveBufferToLocal ,deleteLocalByUrl } from "../utils/fileStorage.js";
 import Nomination, { NOMINATION_TYPES } from "../models/nominationModel.js";
+
 
 export const createNomination = async (req, res) => {
   try {
@@ -8,7 +9,7 @@ export const createNomination = async (req, res) => {
       title,
       description = "",
       type,
-      image: imageUrlFromBody, // optional: direct URL in body
+      image: imageUrlFromBody, 
     } = req.body;
 // Request body logged for debugging
     // Basic validations
@@ -27,31 +28,11 @@ export const createNomination = async (req, res) => {
     // Handle file upload if a file was provided
     if (req.file) {
       const file = req.file;
-      const uniqueSuffix = `${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 8)}`;
-      const fileName = `nominations/${type}/${uniqueSuffix}-${file.originalname}`;
-      const fileUpload = bucket.file(fileName);
+    
+ 
 
-      // Upload file to Firebase
-      imageUrl = await new Promise((resolve, reject) => {
-        const stream = fileUpload.createWriteStream({
-          metadata: { contentType: file.mimetype },
-        });
 
-        stream.on("error", reject);
-
-        stream.on("finish", async () => {
-          try {
-            await fileUpload.makePublic();
-            resolve(`https://storage.googleapis.com/${bucket.name}/${fileName}`);
-          } catch (e) {
-            reject(e);
-          }
-        });
-
-        stream.end(file.buffer);
-      });
+      imageUrl = await saveBufferToLocal(file, "nominations");
     }
 
     // If no image provided at all
@@ -145,85 +126,43 @@ export const getNominationById = async (req, res) => {
 };
 
 export const updateNominationById = async (req, res) => {
-  try {
+try {
     const { id } = req.params;
-    const {
-      title,
-      description,
-      type,
-      image: imageUrlFromBody,
-    } = req.body;
+    const { title, description, type, image: imageUrlFromBody } = req.body;
+    const file = req.file; 
 
-    // Check if nomination exists
     const existingNomination = await Nomination.findById(id);
-    if (!existingNomination) {
-      return res.status(404).json({ error: "Nomination not found" });
-    }
+    if (!existingNomination) return res.status(404).json({ error: "Nomination not found" });
 
     // Prepare update payload
     const payload = {};
-    
     if (title !== undefined) payload.title = String(title).trim();
     if (description !== undefined) payload.description = String(description).trim();
-    
-    // Validate type if provided
-    if (type) {
+
+    if (type !== undefined) {
       if (!NOMINATION_TYPES.includes(type)) {
-        return res.status(400).json({
-          error: `type must be one of: ${NOMINATION_TYPES.join(", ")}`,
-        });
+        return res.status(400).json({ error: `type must be one of: ${NOMINATION_TYPES.join(", ")}` });
       }
       payload.type = type;
     }
 
-    let imageUrl = imageUrlFromBody || existingNomination.image;
 
-    // Handle file upload if a file was provided
-    if (req.file) {
-      const file = req.file;
-      const uniqueSuffix = `${Date.now()}-${Math.random()
-        .toString(36)
-        .slice(2, 8)}`;
-      const fileName = `nominations/${payload.type || existingNomination.type}/${uniqueSuffix}-${file.originalname}`;
-      const fileUpload = bucket.file(fileName);
+    let newImageUrl = existingNomination.image;
 
-      // Upload file to Firebase
-      imageUrl = await new Promise((resolve, reject) => {
-        const stream = fileUpload.createWriteStream({
-          metadata: { contentType: file.mimetype },
-        });
-
-        stream.on("error", reject);
-
-        stream.on("finish", async () => {
-          try {
-            await fileUpload.makePublic();
-            resolve(`https://storage.googleapis.com/${bucket.name}/${fileName}`);
-          } catch (e) {
-            reject(e);
-          }
-        });
-
-        stream.end(file.buffer);
-      });
-    }
-
-    // Add image to payload if we have a new URL
-    if (imageUrl !== existingNomination.image) {
-      payload.image = imageUrl;
-    }
-
-    // Update the nomination
-    const updatedNomination = await Nomination.findByIdAndUpdate(
-      id,
-      payload,
-      {
-        new: true,
-        runValidators: true,
+    if (file?.buffer) {
+      const saved = await saveBufferToLocal(file, "nominations");
+      newImageUrl = saved;
+      if (existingNomination.image) await deleteLocalByUrl(existingNomination.image).catch(() => {});
+    } else if (imageUrlFromBody !== undefined) {
+      newImageUrl = imageUrlFromBody || undefined;
+      if (existingNomination.image && (!newImageUrl || newImageUrl !== existingNomination.image)) {
+        await deleteLocalByUrl(existingNomination.image).catch(() => {});
       }
-    );
+    }
 
-    return res.json(updatedNomination);
+    if (newImageUrl !== existingNomination.image) payload.image = newImageUrl;
+    const updated = await Nomination.findByIdAndUpdate(id, payload, { new: true, runValidators: true });
+    return res.json(updated);
   } catch (err) {
     console.error("updateNominationById error:", err);
     return res.status(500).json({ error: "Failed to update nomination" });
@@ -233,6 +172,7 @@ export const deleteNominationById = async (req, res) => {
   try {
     const { id } = req.params;
     const doc = await Nomination.findByIdAndDelete(id);
+    await deleteLocalByUrl(doc.image);
     if (!doc) return res.status(404).json({ error: "Nomination not found" });
     return res.json({ success: true });
   } catch (err) {

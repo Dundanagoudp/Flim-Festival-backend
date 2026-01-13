@@ -3,6 +3,7 @@ import PDFDocument from "pdfkit";
 import mongoose from "mongoose";
 import upload from "../utils/multerMemory.js";
 import { bucket } from "../config/firebaseConfig.js";
+import { deleteLocalByUrl , saveBufferToLocal } from "../utils/fileStorage.js";
 
 // Update event core fields and optionally replace image
 export const updateEvent = async (req, res) => {
@@ -58,6 +59,8 @@ export const updateEvent = async (req, res) => {
   }
 };
 
+
+
 // Create event; supports multipart/form-data with optional image
 export const addEvent = async (req, res) => {
   try {
@@ -92,11 +95,7 @@ export const addEvent = async (req, res) => {
 
     // If image file present, upload to Firebase and set event.image before saving
     if (req.file) {
-      const fileName = `events/${Date.now()}_${req.file.originalname}`;
-      const file = bucket.file(fileName);
-      await file.save(req.file.buffer, { metadata: { contentType: req.file.mimetype } });
-      await file.makePublic();
-      event.image = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+      event.image = await saveBufferToLocal(req.file, "events");
     }
 
     await event.save();
@@ -163,22 +162,14 @@ export const updateEventDayWithImage = async (req, res) => {
       // Delete old image if it exists
       if (eventDay.image) {
         try {
-          const oldImageUrl = eventDay.image;
-          const oldFileName = oldImageUrl.split('/').pop();
-          const oldFullPath = `event-days/${oldFileName}`;
-          const oldFile = bucket.file(oldFullPath);
-          await oldFile.delete();
+          await deleteLocalByUrl(eventDay.image);
         } catch (storageError) {
           console.log("Old image not found in storage, continuing with new upload");
         }
       }
 
       // Upload new image
-      const fileName = `event-days/${eventDayId}_${Date.now()}_${req.file.originalname}`;
-      const file = bucket.file(fileName);
-      await file.save(req.file.buffer, { metadata: { contentType: req.file.mimetype } });
-      await file.makePublic();
-      eventDay.image = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+      eventDay.image = await saveBufferToLocal(req.file, "eventdays");
     }
 
     eventDay.updatedAt = new Date();
@@ -205,23 +196,13 @@ export const uploadEventDayImage = async (req, res) => {
     // Delete old image if it exists
     if (eventDay.image) {
       try {
-        const oldImageUrl = eventDay.image;
-        const oldFileName = oldImageUrl.split('/').pop();
-        const oldFullPath = `event-days/${oldFileName}`;
-        const oldFile = bucket.file(oldFullPath);
-        await oldFile.delete();
+       await deleteLocalByUrl(eventDay.image)
       } catch (storageError) {
         console.log("Old image not found in storage, continuing with new upload");
       }
     }
 
-    const fileName = `event-days/${eventDayId}_${Date.now()}_${req.file.originalname}`;
-    const file = bucket.file(fileName);
-    await file.save(req.file.buffer, {
-      metadata: { contentType: req.file.mimetype },
-    });
-    await file.makePublic();
-    eventDay.image = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+    eventDay.image = await saveBufferToLocal(req.file, "eventdays");
     eventDay.updatedAt = new Date();
     await eventDay.save();
 
@@ -308,6 +289,8 @@ export const getTotalEvent = async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 };
+
+
 
 export const addTime = async (req, res) => {
   try {
@@ -536,16 +519,9 @@ export const deleteEventDayImage = async (req, res) => {
 
     // Extract file name from the full URL
     const imageUrl = eventDay.image;
-    const fileName = imageUrl.split('/').pop();
-    const fullPath = `event-days/${fileName}`;
+    await deleteLocalByUrl(imageUrl);
 
-    try {
-      // Delete from Firebase Storage
-      const file = bucket.file(fullPath);
-      await file.delete();
-    } catch (storageError) {
-      console.log("Image not found in storage, continuing with database update");
-    }
+   
 
     // Remove image URL from database
     eventDay.image = undefined;
@@ -614,6 +590,32 @@ export const getTodayOrLatestEvent = async (req, res) => {
       .sort((a, b) => a.dayNumber - b.dayNumber);
 
     return res.status(200).json({ event, days: structuredDays });
+  } catch (error) {
+    return res.status(500).json({ message: "Server error", error: error.message });
+  }
+};
+
+
+
+export const getEventDetailsById = async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    if (!eventId) return res.status(400).json({ message: "eventId required" });
+
+    const event = await EventsCollection.findById(eventId);
+    if (!event) return res.status(404).json({ message: "Event not found" });
+
+    const eventDays = await EventDayCollection.find({ event_ref: event._id });
+    const timeSlots = await TimeCollection.find({ event_ref: event._id }).populate("day_ref");
+
+    const days = eventDays.map((day) => ({
+      ...day.toObject(),
+      timeSlots: timeSlots.filter(
+        (slot) => slot.day_ref && slot.day_ref._id.toString() === day._id.toString()
+      ),
+    }));
+
+    return res.status(200).json({ event, days });
   } catch (error) {
     return res.status(500).json({ message: "Server error", error: error.message });
   }

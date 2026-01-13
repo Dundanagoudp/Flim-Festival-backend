@@ -1,5 +1,5 @@
 import Event from "../models/eventsModel.js";
-import { bucket } from "../config/firebaseConfig.js";
+import { saveBufferToLocal } from "../utils/fileStorage.js";
 
 const createEvent = async (req, res) => {
   try {
@@ -13,15 +13,7 @@ const createEvent = async (req, res) => {
       parsedDays = await Promise.all(
         parsedDays.map(async (day, idx) => {
           if (req.files[idx]) {
-            const fileName = `events/${Date.now()}_${req.files[idx].originalname}`;
-            const file = bucket.file(fileName);
-
-            await file.save(req.files[idx].buffer, {
-              metadata: { contentType: req.files[idx].mimetype },
-            });
-
-            await file.makePublic();
-            day.image = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+            day.image = await saveBufferToLocal(req.files[idx], "events");
           }
           return day;
         })
@@ -73,6 +65,7 @@ const deleteEventById = async (req, res) => {
         if (!deletedEvent) {
             return res.status(404).json({ message: "Event not found" });
         }
+        await deleteLocalByUrl(deletedEvent.image);
         res.status(200).json({ message: "Event deleted successfully" });
     } catch (error) {
         console.error("Error deleting event:", error);
@@ -86,6 +79,8 @@ const updateEventById = async (req, res) => {
         if (!updatedEvent) {
             return res.status(404).json({ message: "Event not found" });
         }
+        await deleteLocalByUrl(updatedEvent.image);
+        await saveBufferToLocal(req.file, "events");
         res.status(200).json(updatedEvent);
     } catch (error) {
         console.error("Error updating event:", error);

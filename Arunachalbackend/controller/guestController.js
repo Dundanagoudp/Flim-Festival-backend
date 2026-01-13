@@ -1,6 +1,6 @@
 import Guest from "../models/guestModel.js";
 import Year from "../models/yearModel.js";
-import { bucket } from "../config/firebaseConfig.js";
+import { saveBufferToLocal, deleteLocalByUrl } from "../utils/fileStorage.js";
 import multer from "multer";
 
 // Multer configuration for file uploads
@@ -93,18 +93,13 @@ export const deleteYear = async (req, res) => {
 
 // Guest Management Functions
 export const createGuest = async (req, res) => {
-  const handleUpload = () => {
-    return new Promise((resolve) => {
-      if (req.is && req.is("multipart/form-data")) {
-        upload(req, res, () => resolve());
-      } else {
-        resolve();
-      }
-    });
-  };
 
   try {
-    await handleUpload();
+    if (req.is?.("multipart/form-data")) {
+      await new Promise((resolve, reject) =>
+        upload(req, res, (err) => (err ? reject(err) : resolve()))
+      );
+    }
     
     const { name, role, age, description, year, movies, photo: photoUrlFromBody } = req.body;
     const file = req.file;
@@ -125,25 +120,8 @@ export const createGuest = async (req, res) => {
     let photoUrl = photoUrlFromBody; // may be undefined
 
     // If file uploaded, upload to Firebase
-    if (file && file.buffer) {
-      const fileName = `guests/${yearDoc.value}/${Date.now()}-${file.originalname}`;
-      const fileUpload = bucket.file(fileName);
-
-      await new Promise((resolve, reject) => {
-        const stream = fileUpload.createWriteStream({
-          metadata: { contentType: file.mimetype },
-        });
-        stream.on("error", reject);
-        stream.on("finish", async () => {
-          try {
-            await fileUpload.makePublic();
-            resolve();
-          } catch (error) { reject(error); }
-        });
-        stream.end(file.buffer);
-      });
-
-      photoUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+    if (file?.buffer) {
+      photoUrl = await saveBufferToLocal(file, "guests");
     }
 
     // Require at least one of file or URL
@@ -287,65 +265,43 @@ export const getSingleGuest = async (req, res) => {
 };
 
 export const updateGuest = async (req, res) => {
-  const handleUpload = () => {
-    return new Promise((resolve) => {
-      if (req.is && req.is("multipart/form-data")) {
-        upload(req, res, () => resolve());
-      } else {
-        resolve();
-      }
-    });
-  };
-
   try {
-    await handleUpload();
-    
+    // Run multer upload if multipart
+    if (req.is?.("multipart/form-data")) {
+      await new Promise((resolve, reject) =>
+        upload(req, res, (err) => (err ? reject(err) : resolve()))
+      );
+    }
+
     const { id } = req.params;
-    const { name, role, age, description, year, movies, photo: photoUrlFromBody } = req.body;
+    const { name, role, age, description, year, movies, photo: photoUrl } = req.body;
     const file = req.file;
 
     const guest = await Guest.findById(id);
-    if (!guest) { return res.status(404).json({ message: "Guest not found" }); }
+    if (!guest) return res.status(404).json({ message: "Guest not found" });
 
     if (name) guest.name = name;
     if (role) guest.role = role;
-    if (age !== undefined) guest.age = age ? parseInt(age) : undefined;
-    if (description !== undefined) guest.description = description;
+    if (description) guest.description = description;
+    if (age !== undefined) guest.age = Number(age) || undefined;
+    if (movies !== undefined) guest.movies = movies;
     if (year) {
-      const yearDoc = await Year.findById(year);
-      if (!yearDoc) { return res.status(400).json({ message: "Invalid year" }); }
+      const y = await Year.findById(year);
+      if (!y) return res.status(400).json({ message: "Invalid year" });
       guest.year = year;
     }
-    if (movies !== undefined) guest.movies = movies;
 
-    if (file && file.buffer) {
-      if (guest.photo) {
-        const oldFilePath = guest.photo.split(`https://storage.googleapis.com/${bucket.name}/`)[1];
-        if (oldFilePath) {
-          await bucket.file(oldFilePath).delete().catch(() => {});
-        }
-      }
-      const yearDoc = await Year.findById(guest.year);
-      const fileName = `guests/${yearDoc.value}/${Date.now()}-${file.originalname}`;
-      const fileUpload = bucket.file(fileName);
-      await new Promise((resolve, reject) => {
-        const stream = fileUpload.createWriteStream({ metadata: { contentType: file.mimetype } });
-        stream.on("error", reject);
-        stream.on("finish", async () => { try { await fileUpload.makePublic(); resolve(); } catch (e) { reject(e); } });
-        stream.end(file.buffer);
-      });
-      guest.photo = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
-    } else if (photoUrlFromBody !== undefined) {
-      // If client sends a new URL (string or empty to clear), set it
-      guest.photo = photoUrlFromBody || undefined;
+    if (file?.buffer) {
+      if (guest.photo) await deleteLocalByUrl(guest.photo).catch(() => {});
+      guest.photo = await saveBufferToLocal(file, `guests`);
+    } else if (photoUrl !== undefined) {
+      guest.photo = photoUrl || undefined;
     }
 
     await guest.save();
-
-    res.status(200).json({ message: "Guest updated successfully", guest });
+    res.status(200).json({ message: "Guest updated", guest });
   } catch (err) {
-    console.error("Error updating guest:", err);
-    res.status(500).json({ message: "Server error", error: err.message });
+    res.status(500).json({ message: err.message || "Server error" });
   }
 };
 
@@ -356,12 +312,9 @@ export const deleteGuest = async (req, res) => {
     if (!guest) { return res.status(404).json({ message: "Guest not found" }); }
 
     if (guest.photo) {
-      const filePath = guest.photo.split(`https://storage.googleapis.com/${bucket.name}/`)[1];
-      if (filePath) {
-        await bucket.file(filePath).delete().catch(() => {});
-      }
+      await deleteLocalByUrl(guest.photo);
     }
-
+     
     await Guest.findByIdAndDelete(id);
     res.status(200).json({ message: "Guest deleted successfully" });
   } catch (err) {

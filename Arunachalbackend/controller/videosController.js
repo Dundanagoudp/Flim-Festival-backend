@@ -2,6 +2,7 @@ import VideoBlog from "../models/videosModel.js";
 import { bucket } from "../config/firebaseConfig.js";
 import path from "path";
 import upload from "../utils/multerMemory.js";
+import { saveBufferToLocal , deleteLocalByUrl } from "../utils/fileStorage.js";
 
 function cleanYouTubeUrl(url) {
   if (!url) return url;
@@ -107,8 +108,8 @@ export const addVideoBlog = async (req, res) => {
       const videoFile = req.files.video[0];
       const thumbnailFile = req.files.thumbnail[0];
       const [videoUrl, thumbnailUrl] = await Promise.all([
-        uploadFileToFirebase(videoFile, "VideoBlog/videos"),
-        uploadFileToFirebase(thumbnailFile, "VideoBlog/thumbnails"),
+        saveBufferToLocal(videoFile, "VideoBlog/videos"),
+        saveBufferToLocal(thumbnailFile, "VideoBlog/thumbnails"),
       ]);
       const created = await VideoBlog.create({
         title,
@@ -214,11 +215,11 @@ export const updateVideoBlog = async (req, res) => {
         if (req.files.video) videoFile = req.files.video[0];
         if (req.files.thumbnail) thumbnailFile = req.files.thumbnail[0];
         const deletePromises = [];
-        if (videoFile && videoBlog.video_url) deletePromises.push(deleteFileFromFirebase(videoBlog.video_url));
-        if (thumbnailFile && videoBlog.imageUrl) deletePromises.push(deleteFileFromFirebase(videoBlog.imageUrl));
+        if (videoFile && videoBlog.video_url) deletePromises.push(deleteLocalByUrl(videoBlog.video_url));
+        if (thumbnailFile && videoBlog.imageUrl) deletePromises.push(deleteLocalByUrl(videoBlog.imageUrl));
         await Promise.all(deletePromises);
-        if (videoFile) videoUrl = await uploadFileToFirebase(videoFile, "VideoBlog/videos");
-        if (thumbnailFile) thumbnailUrl = await uploadFileToFirebase(thumbnailFile, "VideoBlog/thumbnails");
+        if (videoFile) videoUrl = await saveBufferToLocal(videoFile, "VideoBlog/videos");
+        if (thumbnailFile) thumbnailUrl = await saveBufferToLocal(thumbnailFile, "VideoBlog/thumbnails");
       }
       const updated = await VideoBlog.findByIdAndUpdate(
         videoId,
@@ -238,8 +239,8 @@ export const deleteVideoBlog = async (req, res) => {
     const { videoId } = req.params;
     const videoBlog = await VideoBlog.findById(videoId);
     if (!videoBlog) return res.status(404).json({ message: "Video blog not found" });
-    if (videoBlog.video_url) await deleteFileFromFirebase(videoBlog.video_url);
-    if (videoBlog.imageUrl) await deleteFileFromFirebase(videoBlog.imageUrl);
+    if (videoBlog.video_url) await deleteLocalByUrl(videoBlog.video_url);
+    if (videoBlog.imageUrl) await deleteLocalByUrl(videoBlog.imageUrl);
     await VideoBlog.findByIdAndDelete(videoId);
     res.status(200).json({ message: "Video blog deleted successfully" });
   } catch (err) {
