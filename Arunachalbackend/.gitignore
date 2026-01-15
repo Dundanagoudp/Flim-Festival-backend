@@ -9,4 +9,3 @@ yarn-error.log*
 
 .early.coverage
 .env
-uploads/

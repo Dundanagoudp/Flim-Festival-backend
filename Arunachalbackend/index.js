@@ -135,7 +135,7 @@ app.use("/api/v1/nominations", nominationsRoutes)
 app.use("/api/v1/homepage", homepageRoutes)
 
 app.use("/api/v1/contactus", contactUsRoutes)
-app.use("/uploads",Uploadrouter,express.static(path.join(process.cwd(), "uploads")));
+app.use("/api/v1/uploads",Uploadrouter,express.static(path.join(process.cwd(), "uploads")));
  
 app.get('/', (req, res) => {
     res.send('arunachal flim fetival backend is running')
