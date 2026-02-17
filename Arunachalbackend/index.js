@@ -20,6 +20,7 @@ import dashboardRoute from "./routes/dashboardRoute.js";
 import nominationsRoutes from "./routes/nominationRoutes.js";
 import homepageRoutes from "./routes/HomepageRoutes.js";
 import contactUsRoutes from "./routes/contactUsRoutes.js";
+import captchaRoute from "./routes/captchaRoute.js";
 import Uploadrouter from "./routes/upload/upload.js";
 
 // --- Config ---
@@ -210,6 +211,7 @@ app.use("/api/v1/dashboard", dashboardRoute);
 app.use("/api/v1/nominations", nominationsRoutes);
 app.use("/api/v1/homepage", homepageRoutes);
 app.use("/api/v1/contactus", contactUsRoutes);
+app.use("/api/v1/captcha", captchaRoute);
 app.use("/api/v1/uploads", Uploadrouter, express.static(path.join(process.cwd(), "uploads")));
 
 app.get("/", (req, res) => {
