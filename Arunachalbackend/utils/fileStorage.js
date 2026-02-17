@@ -2,6 +2,14 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from 'url';
 
+// Root directory for uploads (same base used by saveBufferToLocal and deleteLocalByUrl)
+export const getUploadsRoot = () => {
+	const __filename = fileURLToPath(import.meta.url);
+	const __dirname = path.dirname(__filename);
+	const backendRoot = path.dirname(__dirname);
+	return path.join(backendRoot, "uploads");
+};
+
 // Save a single uploaded file buffer to local uploads/<folder>/ and return public URL path
 export const saveBufferToLocal = async (file, folder) => {
 	if (!file || !file.buffer || !file.originalname) {
