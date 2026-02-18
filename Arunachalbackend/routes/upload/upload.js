@@ -2,6 +2,7 @@
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
+import { getUploadsRoot } from '../../utils/fileStorage.js';
 
 const Uploadrouter = express.Router();
 
@@ -40,7 +41,7 @@ Uploadrouter.get('/VideoBlog/videos/:filename', (req, res) => {
       return res.status(400).send('Invalid filename');
     }
 
-    const videoPath = path.join(process.cwd(), 'uploads', 'VideoBlog', 'videos', filename);
+    const videoPath = path.join(getUploadsRoot(), 'VideoBlog', 'videos', filename);
 
     if (!fs.existsSync(videoPath)) {
       return res.status(404).send('Video not found');
@@ -134,7 +135,7 @@ Uploadrouter.use((req, res, next) => {
 
 // Serve static files from uploads directory
 // NOTE: This will handle all /uploads/* static serving when mounted at root path in app.
-const uploadsRoot = path.join(process.cwd(), 'uploads');
+const uploadsRoot = getUploadsRoot();
 Uploadrouter.use('/', express.static(uploadsRoot, {
   setHeaders: (res, filePath) => {
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');

@@ -1,6 +1,4 @@
 import VideoBlog from "../models/videosModel.js";
-import { bucket } from "../config/firebaseConfig.js";
-import path from "path";
 import upload from "../utils/multerMemory.js";
 import { saveBufferToLocal , deleteLocalByUrl } from "../utils/fileStorage.js";
 
@@ -20,57 +18,6 @@ function cleanYouTubeUrl(url) {
   }
   return url;
 }
-
-const uploadFileToFirebase = async (file, folder) => {
-  const fileName = Date.now() + path.extname(file.originalname);
-  const destination = `${folder}/${fileName}`;
-  const fileUpload = bucket.file(destination);
-  return new Promise((resolve, reject) => {
-    const stream = fileUpload.createWriteStream({
-      metadata: { contentType: file.mimetype },
-    });
-    stream.on("error", (err) => reject(err));
-    stream.on("finish", async () => {
-      try {
-        await fileUpload.makePublic();
-        const publicUrl = `https://storage.googleapis.com/${bucket.name}/${destination}`;
-        resolve(publicUrl);
-      } catch (error) {
-        reject(error);
-      }
-    });
-    stream.end(file.buffer);
-  });
-};
-
-const deleteFileFromFirebase = async (fileUrl) => {
-  try {
-    const baseUrl = `https://storage.googleapis.com/${bucket.name}/`;
-    let filePath = fileUrl;
-    if (fileUrl.startsWith(baseUrl)) {
-      filePath = fileUrl.replace(baseUrl, "");
-    } else if (fileUrl.includes(`storage.googleapis.com/${bucket.name}/`)) {
-      filePath = fileUrl.split(`storage.googleapis.com/${bucket.name}/`)[1];
-    } else if (
-      fileUrl.includes(`firebasestorage.googleapis.com/v0/b/${bucket.name}/o/`)
-    ) {
-      filePath = fileUrl.split(
-        `firebasestorage.googleapis.com/v0/b/${bucket.name}/o/`
-      )[1];
-      filePath = decodeURIComponent(filePath.split("?")[0]).replace(
-        /%2F/g,
-        "/"
-      );
-    }
-    const file = bucket.file(filePath);
-    const [exists] = await file.exists();
-    if (!exists) return;
-    await file.delete();
-    return true;
-  } catch (error) {
-    throw error;
-  }
-};
 
 export const addVideoBlog = async (req, res) => {
   const handleUpload = () =>

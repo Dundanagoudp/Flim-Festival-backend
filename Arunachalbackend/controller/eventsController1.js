@@ -2,7 +2,6 @@ import { EventDayCollection, EventsCollection, TimeCollection } from "../models/
 import PDFDocument from "pdfkit";
 import mongoose from "mongoose";
 import upload from "../utils/multerMemory.js";
-import { bucket } from "../config/firebaseConfig.js";
 import { deleteLocalByUrl , saveBufferToLocal } from "../utils/fileStorage.js";
 
 // Update event core fields and optionally replace image
@@ -36,19 +35,10 @@ export const updateEvent = async (req, res) => {
     }
 
     if (req.file) {
-      // delete old image if exists
       if (event.image) {
-        try {
-          const oldFileName = event.image.split('/').pop();
-          const oldPath = `events/${oldFileName}`;
-          await bucket.file(oldPath).delete();
-        } catch (_) {}
+        await deleteLocalByUrl(event.image);
       }
-      const fileName = `events/${eventId}_${Date.now()}_${req.file.originalname}`;
-      const file = bucket.file(fileName);
-      await file.save(req.file.buffer, { metadata: { contentType: req.file.mimetype } });
-      await file.makePublic();
-      event.image = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+      event.image = await saveBufferToLocal(req.file, "events");
     }
 
     event.updatedAt = new Date();

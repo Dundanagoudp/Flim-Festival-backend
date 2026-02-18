@@ -1,12 +1,9 @@
-import { bucket } from "../config/firebaseConfig.js";
 import {
   AboutUsBanner,
   AboutUsStatistics,
   AboutUsLookInside,
 } from "../models/aboutusModels.js";
 import { saveBufferToLocal, deleteLocalByUrl } from "../utils/fileStorage.js";
-
-// Helper: delete a file from Firebase Storage when given a public URL
 
 // Section-specific GET endpoints (public)
 const getAboutUsBanner = async (req, res) => {
@@ -518,13 +515,13 @@ const updateAboutUsLookInsideById = async (req, res) => {
 
     if (req.file) {
       try {
-        newImageUrl = await saveBufferToLocal(req.file.buffer, "lookinside");
+        newImageUrl = await saveBufferToLocal(req.file, "lookinside");
       } catch (uploadError) {
         return res
           .status(500)
           .json({
             success: false,
-            message: "Error uploading image to Firebase",
+            message: "Error uploading image",
           });
       }
     }

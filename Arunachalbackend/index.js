@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import helmet from "helmet";
 import path from "path";
+import { fileURLToPath } from "url";
 import connectDB from "./config/mongoConnect.js";
 import cookieParser from "cookie-parser";
 import authRoute from "./routes/authRoute.js";
@@ -25,6 +26,9 @@ import Uploadrouter from "./routes/upload/upload.js";
 
 // --- Config ---
 dotenv.config();
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const uploadsPath = path.join(__dirname, "uploads");
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -161,7 +165,7 @@ app.use((req, res, next) => {
   // Additional security headers not covered by Helmet (allow video playback features)
   res.setHeader(
     "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), ambient-light-sensor=(), autoplay=*, encrypted-media=*, fullscreen=*, picture-in-picture=*, publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), web-share=(), xr-spatial-tracking=()"
+    "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=(), autoplay=*, encrypted-media=*, fullscreen=*, picture-in-picture=*, publickey-credentials-get=(), screen-wake-lock=(), sync-xhr=(), web-share=(), xr-spatial-tracking=()"
   );
 
   // Ensure X-XSS-Protection is set (Helmet sets this but we ensure it's correct)
@@ -212,7 +216,7 @@ app.use("/api/v1/nominations", nominationsRoutes);
 app.use("/api/v1/homepage", homepageRoutes);
 app.use("/api/v1/contactus", contactUsRoutes);
 app.use("/api/v1/captcha", captchaRoute);
-app.use("/api/v1/uploads", Uploadrouter, express.static(path.join(process.cwd(), "uploads")));
+app.use("/api/v1/uploads", Uploadrouter, express.static(uploadsPath));
 
 app.get("/", (req, res) => {
   res.send("arunachal flim fetival backend is running");

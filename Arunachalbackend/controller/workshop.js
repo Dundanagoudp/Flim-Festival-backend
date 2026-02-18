@@ -27,7 +27,7 @@ export const addWorkshop = async (req, res) => {
     console.log("File received:", file);
     if (file?.buffer) {
 
-       imageUrl = await saveBufferToLocal(file, `workshop`);
+       imageUrl = await saveBufferToLocal(file, "WorkShop");
     }
 
     const workshop = new Workshop({
