@@ -25,6 +25,7 @@ import homepageRoutes from "./routes/HomepageRoutes.js";
 import contactUsRoutes from "./routes/contactUsRoutes.js";
 import captchaRoute from "./routes/captchaRoute.js";
 import Uploadrouter from "./routes/upload/upload.js";
+import rateLimit from "express-rate-limit";
 
 // --- Config ---
 dotenv.config();
@@ -201,7 +202,22 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 app.use(cookieParser(process.env.SECRET_KEY));
 
+// HIGH PRIORITY FIX: Rate limiter for login endpoint
+const loginRateLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000, // 5 minutes window
+  max: 5, // Limit each IP to 5 login requests per window
+  message: {
+    success: false,
+    message: "Too many login attempts from this IP. Please try again in 5 minutes.",
+  },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  skipSuccessfulRequests: false, // Count successful requests
+  skipFailedRequests: false, // Count failed requests
+});
+
 // --- Routes ---
+app.use("/api/v1/auth/login", loginRateLimiter);
 app.use("/api/v1/auth", authRoute);
 app.get("/api/me", protect, getMyProfile);
 app.use("/api/v1/gallery", galleryRoute);
