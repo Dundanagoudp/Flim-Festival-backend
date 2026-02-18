@@ -52,36 +52,20 @@ const login = async (req, res) => {
         message: "Incorrect email or password",
       });
     }
-    const expiresAt = new Date(
-      Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000
-    );
-
-
     const token = generateToken(user);
 
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      maxAge: 24 * 60 * 60 * 1000, 
-      sameSite: "strict", 
+      sameSite: "strict",
+      path: "/",
+      maxAge: 24 * 60 * 60 * 1000, // 24h, aligned with JWT expiry
     });
     await user.save();
-
-    // Prepare user data response
-    const userData = {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-    };
 
     res.status(200).json({
       success: true,
       message: "Login successful",
-      token,
-      data: {
-        user: userData,
-      },
     });
   } catch (error) {
     console.error("Login error:", error.message);

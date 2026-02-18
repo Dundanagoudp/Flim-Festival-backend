@@ -7,6 +7,8 @@ import { fileURLToPath } from "url";
 import connectDB from "./config/mongoConnect.js";
 import cookieParser from "cookie-parser";
 import authRoute from "./routes/authRoute.js";
+import { protect } from "./utils/auth.js";
+import { getMyProfile } from "./controller/authController.js";
 import galleryRoute from "./routes/galleryRoute.js";
 import guestRoute from "./routes/guestRoutes.js";
 import awardsRoutes from "./routes/awardsRoutes.js";
@@ -201,6 +203,7 @@ app.use(cookieParser(process.env.SECRET_KEY));
 
 // --- Routes ---
 app.use("/api/v1/auth", authRoute);
+app.get("/api/me", protect, getMyProfile);
 app.use("/api/v1/gallery", galleryRoute);
 app.use("/api/v1/guest", guestRoute);
 app.use("/api/v1/blogs", blogsRoute);
