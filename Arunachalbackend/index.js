@@ -24,6 +24,7 @@ import nominationsRoutes from "./routes/nominationRoutes.js";
 import homepageRoutes from "./routes/HomepageRoutes.js";
 import contactUsRoutes from "./routes/contactUsRoutes.js";
 import captchaRoute from "./routes/captchaRoute.js";
+import sessionPlanRoutes from "./routes/sessionPlanRoutes.js";
 import Uploadrouter from "./routes/upload/upload.js";
 import rateLimit from "express-rate-limit";
 
@@ -235,6 +236,7 @@ app.use("/api/v1/nominations", nominationsRoutes);
 app.use("/api/v1/homepage", homepageRoutes);
 app.use("/api/v1/contactus", contactUsRoutes);
 app.use("/api/v1/captcha", captchaRoute);
+app.use("/api/v1/session-plans", sessionPlanRoutes);
 app.use("/api/v1/uploads", Uploadrouter, express.static(uploadsPath));
 
 app.get("/", (req, res) => {
