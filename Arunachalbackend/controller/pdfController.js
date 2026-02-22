@@ -76,6 +76,31 @@ export async function previewPdf(req, res) {
   }
 }
 
+/** GET :id/download — stream PDF with attachment so browser offers Save */
+function safeDownloadFilename(doc) {
+  const raw = doc.name && String(doc.name).trim() ? String(doc.name).trim() : path.basename(doc.pdfUrl);
+  const safe = raw.replace(/[\\/"\n\r]/g, "_").replace(/\s+/g, "_").slice(0, 200);
+  return safe.endsWith(".pdf") ? safe : (safe || "schedule") + ".pdf";
+}
+
+export async function downloadPdf(req, res) {
+  try {
+    const doc = await PdfDocument.findById(req.params.id);
+    if (!doc) return notFound(res, "PDF not found");
+    const relative = doc.pdfUrl.replace(/^\/uploads\//, "");
+    const absolutePath = path.join(getUploadsRoot(), relative);
+    if (!fs.existsSync(absolutePath)) {
+      return notFound(res, "PDF file not found");
+    }
+    const filename = safeDownloadFilename(doc);
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.sendFile(absolutePath);
+  } catch (e) {
+    return err(res, e);
+  }
+}
+
 /** PUT update PDF by id — optional: new PDF file (multipart "pdf"), optional name (body) */
 export async function updatePdf(req, res) {
   try {
