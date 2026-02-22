@@ -6,6 +6,9 @@ import {
   updateCategory,
   deleteCategory,
   getImagesByCategory,
+  getSectionBySlug,
+  getImageById,
+  getJuryAll,
   uploadImage,
   updateImage,
   deleteImage,
@@ -39,6 +42,12 @@ router.delete("/category/:id", protect, restrictTo("admin"), deleteCategory);
 // Images: grouped must be before /images so "grouped" is not used as categoryId
 router.get("/images/grouped", getGroupedImages);
 router.get("/images", getImagesByCategory);
+// Jury: get all jury entries (separate endpoint)
+router.get("/jury", getJuryAll);
+// Section by slug (e.g. /sections/short-film, /sections/documentary-film)
+router.get("/sections/:slug", getSectionBySlug);
+// Single image by ID for detail page (must be before PUT /image/:id)
+router.get("/image/:id", getImageById);
 router.post("/image", protect, restrictTo("admin"), handleImageUpload, uploadImage);
 router.put("/image/:id", protect, restrictTo("admin"), handleImageUpload, updateImage);
 router.delete("/image/:id", protect, restrictTo("admin"), deleteImage);

@@ -28,14 +28,6 @@ import {
   updateSlot,
   deleteSlot,
 } from "../controller/sessionPlanController.js";
-import {
-  uploadPlanPdf,
-  getPlanPdf,
-  uploadDayPdf,
-  getDayPdf,
-} from "../controller/sessionPlanPdfController.js";
-import uploadPdf from "../utils/multerPdf.js";
-
 const router = express.Router({ mergeParams: true });
 
 // ─── Categories (must be before :planId so "categories" is not captured as planId) ───
@@ -44,10 +36,6 @@ router.post("/categories", createCategory);
 router.get("/categories/:categoryId", getCategoryById);
 router.put("/categories/:categoryId", updateCategory);
 router.delete("/categories/:categoryId", deleteCategory);
-
-// ─── Plan PDF (before generic :planId so /:planId/pdf matches) ─────────────────────
-router.get("/:planId/pdf", getPlanPdf);
-router.post("/:planId/pdf", uploadPdf.single("pdf"), uploadPlanPdf);
 
 // ─── Plans ─────────────────────────────────────────────────────────────────────────
 router.get("/", getPlans);
@@ -59,8 +47,6 @@ router.delete("/:planId", deletePlan);
 // ─── Days ───────────────────────────────────────────────────────────────────────────
 router.get("/:planId/days", getDays);
 router.post("/:planId/days", createDay);
-router.get("/:planId/days/:dayId/pdf", getDayPdf);
-router.post("/:planId/days/:dayId/pdf", uploadPdf.single("pdf"), uploadDayPdf);
 router.get("/:planId/days/:dayId", getDayById);
 router.put("/:planId/days/:dayId", updateDay);
 router.delete("/:planId/days/:dayId", deleteDay);
