@@ -25,6 +25,7 @@ import homepageRoutes from "./routes/HomepageRoutes.js";
 import contactUsRoutes from "./routes/contactUsRoutes.js";
 import captchaRoute from "./routes/captchaRoute.js";
 import sessionPlanRoutes from "./routes/sessionPlanRoutes.js";
+import pdfRoutes from "./routes/pdfRoutes.js";
 import Uploadrouter from "./routes/upload/upload.js";
 import curatedRoutes from "./routes/curatedRoutes.js";
 import rateLimit from "express-rate-limit";
@@ -238,6 +239,7 @@ app.use("/api/v1/homepage", homepageRoutes);
 app.use("/api/v1/contactus", contactUsRoutes);
 app.use("/api/v1/captcha", captchaRoute);
 app.use("/api/v1/session-plans", sessionPlanRoutes);
+app.use("/api/v1/pdfs", pdfRoutes);
 app.use("/api/v1/curated", curatedRoutes);
 app.use("/api/v1/uploads", Uploadrouter, express.static(uploadsPath));
 
