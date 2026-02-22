@@ -129,6 +129,61 @@ export const getImagesByCategory = async (req, res) => {
   }
 };
 
+/** Get one section by slug (e.g. short-film, documentary-film). Returns category + images with category populated. */
+export const getSectionBySlug = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    if (!slug || !String(slug).trim()) {
+      return res.status(400).json({ message: "slug is required" });
+    }
+    const category = await CuratedCategory.findOne({ slug: String(slug).trim(), public: true });
+    if (!category) {
+      return res.status(404).json({ message: "Section not found" });
+    }
+    const images = await CuratedImage.find({ category: category._id })
+      .populate("category")
+      .sort({ display_order: 1, order: 1, createdAt: 1 });
+    return res.json({
+      category: category.toObject ? category.toObject() : category,
+      images: images.map(imageToResponse),
+    });
+  } catch (err) {
+    console.error("getSectionBySlug error:", err);
+    return res.status(500).json({ message: "Failed to fetch section" });
+  }
+};
+
+/** Get single image by ID for detail page. Returns image with category populated. */
+export const getImageById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid image id" });
+    }
+    const doc = await CuratedImage.findById(id).populate("category");
+    if (!doc) {
+      return res.status(404).json({ message: "Image not found" });
+    }
+    return res.json(imageToResponse(doc));
+  } catch (err) {
+    console.error("getImageById error:", err);
+    return res.status(500).json({ message: "Failed to fetch image" });
+  }
+};
+
+/** Get all jury entries (curated items with jury_name set). Returns list with category populated. */
+export const getJuryAll = async (req, res) => {
+  try {
+    const jury = await CuratedImage.find({ jury_name: { $exists: true, $ne: "" } })
+      .populate("category")
+      .sort({ display_order: 1, order: 1, createdAt: 1 });
+    return res.json({ jury: jury.map(imageToResponse) });
+  } catch (err) {
+    console.error("getJuryAll error:", err);
+    return res.status(500).json({ message: "Failed to fetch jury" });
+  }
+};
+
 export const uploadImage = async (req, res) => {
   try {
     const body = req.body || {};
