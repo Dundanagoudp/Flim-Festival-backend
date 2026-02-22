@@ -16,7 +16,11 @@ import {
     deleteAboutUsLookInsideById,
     updateAboutUsBannerById,
     updateAboutUsStatisticsById,
-    updateAboutUsLookInsideById
+    updateAboutUsLookInsideById,
+    getAboutUsItems,
+    createAboutUsItem,
+    updateAboutUsItemById,
+    deleteAboutUsItemById,
 } from "../controller/aboutuController.js";
 
 const aboutUsRoute = express.Router();
@@ -45,5 +49,11 @@ aboutUsRoute.put("/introduction", protect, restrictTo("admin"), upload.single('i
 aboutUsRoute.put("/introduction/:id", protect, restrictTo("admin"), upload.single('image'), updateAboutUsLookInsideById);
 aboutUsRoute.delete("/introduction", protect, restrictTo("admin"), deleteAboutUsLookInside);
 aboutUsRoute.delete("/introduction/:id", protect, restrictTo("admin"), deleteAboutUsLookInsideById);
+
+// About Items (multiple scrollable items, max 10; each item can have multiple images, max 10)
+aboutUsRoute.get("/items", getAboutUsItems);
+aboutUsRoute.post("/items", protect, restrictTo("admin"), upload.array("images", 10), createAboutUsItem);
+aboutUsRoute.put("/items/:id", protect, restrictTo("admin"), upload.array("images", 10), updateAboutUsItemById);
+aboutUsRoute.delete("/items/:id", protect, restrictTo("admin"), deleteAboutUsItemById);
 
 export default aboutUsRoute;
