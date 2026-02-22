@@ -5,6 +5,7 @@ import {
   listPdfs,
   getPdfById,
   previewPdf,
+  updatePdf,
   deletePdf,
 } from "../controller/pdfController.js";
 
@@ -14,6 +15,7 @@ router.post("/", uploadPdf.single("pdf"), uploadPdfController);
 router.get("/", listPdfs);
 router.get("/:id/preview", previewPdf);
 router.get("/:id", getPdfById);
+router.put("/:id", uploadPdf.single("pdf"), updatePdf);
 router.delete("/:id", deletePdf);
 
 export default router;

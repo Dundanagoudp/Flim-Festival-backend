@@ -76,6 +76,30 @@ export async function previewPdf(req, res) {
   }
 }
 
+/** PUT update PDF by id — optional: new PDF file (multipart "pdf"), optional name (body) */
+export async function updatePdf(req, res) {
+  try {
+    const doc = await PdfDocument.findById(req.params.id);
+    if (!doc) return notFound(res, "PDF not found");
+
+    if (req.file && req.file.buffer) {
+      await deleteLocalByUrl(doc.pdfUrl);
+      doc.pdfUrl = await saveBufferToLocal(req.file, PDF_FOLDER);
+    }
+
+    if (req.body && req.body.name !== undefined) {
+      doc.name = String(req.body.name).trim();
+    }
+
+    await doc.save();
+    const data = doc.toObject();
+    data.pdfUrl = toPublicUrl(doc.pdfUrl);
+    return ok(res, data);
+  } catch (e) {
+    return err(res, e);
+  }
+}
+
 /** DELETE PDF by id (document + file) */
 export async function deletePdf(req, res) {
   try {
