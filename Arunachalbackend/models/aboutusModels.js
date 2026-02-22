@@ -69,5 +69,19 @@ const aboutUsLookInsideSchema = new mongoose.Schema(
 
 const AboutUsLookInside = mongoose.model("AboutUsLookInside", aboutUsLookInsideSchema);
 
-export { AboutUsBanner, AboutUsStatistics, AboutUsLookInside };
+// AboutUsItem schema – multiple scrollable items (8–10); each item can have multiple images (array)
+const aboutUsItemSchema = new mongoose.Schema(
+  {
+    index: { type: Number, default: 0 },
+    title: { type: String, required: true },
+    subtitle: { type: String, default: "" },
+    description: { type: String, default: "" },
+    images: { type: [String], default: [] },
+  },
+  { timestamps: true }
+);
+
+const AboutUsItem = mongoose.model("AboutUsItem", aboutUsItemSchema);
+
+export { AboutUsBanner, AboutUsStatistics, AboutUsLookInside, AboutUsItem };
 

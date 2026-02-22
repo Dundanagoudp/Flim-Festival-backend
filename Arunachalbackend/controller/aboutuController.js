@@ -2,6 +2,7 @@ import {
   AboutUsBanner,
   AboutUsStatistics,
   AboutUsLookInside,
+  AboutUsItem,
 } from "../models/aboutusModels.js";
 import { saveBufferToLocal, deleteLocalByUrl } from "../utils/fileStorage.js";
 
@@ -617,6 +618,188 @@ const deleteAboutUsLookInsideById = async (req, res) => {
   }
 };
 
+// --- About Items (multiple scrollable items, 8–10 max; each item can have multiple images) ---
+const toImagesArray = (doc) => {
+  if (Array.isArray(doc.images)) return doc.images;
+  if (doc.image) return [doc.image];
+  return [];
+};
+
+const getAboutUsItems = async (req, res) => {
+  try {
+    const items = await AboutUsItem.find().sort({ index: 1 }).lean();
+    const data = items.map((doc) => ({
+      id: doc._id,
+      index: doc.index,
+      title: doc.title,
+      subtitle: doc.subtitle || "",
+      description: doc.description || "",
+      images: toImagesArray(doc),
+    }));
+    return res.status(200).json({
+      success: true,
+      message: "About items retrieved successfully",
+      data,
+    });
+  } catch (error) {
+    console.error("Error fetching about items:", error.message);
+    return res
+      .status(500)
+      .json({ success: false, message: "Server error while fetching about items" });
+  }
+};
+
+const MAX_IMAGES_PER_ITEM = 10;
+
+const createAboutUsItem = async (req, res) => {
+  try {
+    const count = await AboutUsItem.countDocuments();
+    if (count >= 10) {
+      return res.status(400).json({
+        success: false,
+        message: "Maximum 10 about items allowed",
+      });
+    }
+    const title = (req.body?.title || "").trim();
+    if (!title) {
+      return res.status(400).json({
+        success: false,
+        message: "Title is required",
+      });
+    }
+    const index = req.body.index !== undefined ? Number(req.body.index) : count;
+    const subtitle = (req.body?.subtitle || "").trim();
+    const description = (req.body?.description || "").trim();
+    const files = Array.isArray(req.files) ? req.files : req.file ? [req.file] : [];
+    const imageUrls = [];
+    for (const file of files) {
+      if (file?.buffer) {
+        const url = await saveBufferToLocal(file, "aboutitems");
+        imageUrls.push(url);
+      }
+    }
+    if (imageUrls.length > MAX_IMAGES_PER_ITEM) {
+      return res.status(400).json({
+        success: false,
+        message: `Maximum ${MAX_IMAGES_PER_ITEM} images per item`,
+      });
+    }
+    const item = new AboutUsItem({
+      index,
+      title,
+      subtitle,
+      description,
+      images: imageUrls,
+    });
+    await item.save();
+    return res.status(201).json({
+      success: true,
+      message: "About item created successfully",
+      data: {
+        id: item._id,
+        index: item.index,
+        title: item.title,
+        subtitle: item.subtitle,
+        description: item.description,
+        images: item.images,
+      },
+    });
+  } catch (error) {
+    console.error("Error creating about item:", error.message);
+    return res
+      .status(500)
+      .json({ success: false, message: "Server error while creating about item" });
+  }
+};
+
+const updateAboutUsItemById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const item = await AboutUsItem.findById(id);
+    if (!item) {
+      return res.status(404).json({ success: false, message: "About item not found" });
+    }
+    const title = req.body?.title !== undefined ? (req.body.title || "").trim() : item.title;
+    if (!title) {
+      return res.status(400).json({ success: false, message: "Title is required" });
+    }
+    const index = req.body.index !== undefined ? Number(req.body.index) : item.index;
+    const subtitle = req.body.subtitle !== undefined ? (req.body.subtitle || "").trim() : item.subtitle;
+    const description = req.body.description !== undefined ? (req.body.description || "").trim() : item.description;
+    let currentImages = toImagesArray(item);
+    const removeIndex = req.body.removeImageIndex !== undefined ? Number(req.body.removeImageIndex) : NaN;
+    if (!Number.isNaN(removeIndex) && removeIndex >= 0 && removeIndex < currentImages.length) {
+      const removedUrl = currentImages[removeIndex];
+      if (removedUrl) await deleteLocalByUrl(removedUrl);
+      currentImages = currentImages.filter((_, i) => i !== removeIndex);
+    }
+    const newFiles = Array.isArray(req.files) ? req.files : req.file ? [req.file] : [];
+    const newUrls = [];
+    for (const file of newFiles) {
+      if (file?.buffer) {
+        const url = await saveBufferToLocal(file, "aboutitems");
+        newUrls.push(url);
+      }
+    }
+    const updatedImages = [...currentImages, ...newUrls];
+    if (updatedImages.length > MAX_IMAGES_PER_ITEM) {
+      for (const url of newUrls) await deleteLocalByUrl(url);
+      return res.status(400).json({
+        success: false,
+        message: `Maximum ${MAX_IMAGES_PER_ITEM} images per item`,
+      });
+    }
+    item.index = index;
+    item.title = title;
+    item.subtitle = subtitle;
+    item.description = description;
+    item.images = updatedImages;
+    await item.save();
+    return res.status(200).json({
+      success: true,
+      message: "About item updated successfully",
+      data: {
+        id: item._id,
+        index: item.index,
+        title: item.title,
+        subtitle: item.subtitle,
+        description: item.description,
+        images: item.images,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating about item:", error.message);
+    return res
+      .status(500)
+      .json({ success: false, message: "Server error while updating about item" });
+  }
+};
+
+const deleteAboutUsItemById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const item = await AboutUsItem.findById(id);
+    if (!item) {
+      return res.status(404).json({ success: false, message: "About item not found" });
+    }
+    const urls = toImagesArray(item);
+    for (const url of urls) {
+      if (url) await deleteLocalByUrl(url);
+    }
+    await item.deleteOne();
+    return res.status(200).json({
+      success: true,
+      message: "About item deleted",
+      data: { id },
+    });
+  } catch (error) {
+    console.error("Error deleting about item:", error.message);
+    return res
+      .status(500)
+      .json({ success: false, message: "Server error while deleting about item" });
+  }
+};
+
 export {
   // Section-specific GET endpoints
   getAboutUsBanner,
@@ -642,4 +825,9 @@ export {
   updateAboutUsBannerById,
   updateAboutUsStatisticsById,
   updateAboutUsLookInsideById,
+  // About Items
+  getAboutUsItems,
+  createAboutUsItem,
+  updateAboutUsItemById,
+  deleteAboutUsItemById,
 };
