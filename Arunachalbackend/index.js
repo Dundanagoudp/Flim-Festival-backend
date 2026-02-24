@@ -45,6 +45,7 @@ const defaultOrigins = [
   "http://localhost:3000",
   "https://flimfestival.vercel.app",
   "https://arunachalfilmfestival.gully2global.in",
+  "http://160.30.140.70",
 ];
 const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
   ? process.env.CORS_ALLOWED_ORIGINS.split(",")
