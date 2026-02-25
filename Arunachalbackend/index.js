@@ -43,6 +43,7 @@ const PORT = process.env.PORT || 5000;
 
 const defaultOrigins = [
   "http://localhost:3000",
+  "http://localhost:3001",
   "https://flimfestival.vercel.app",
   "https://arunachalfilmfestival.gully2global.in",
   "http://160.30.140.70",
