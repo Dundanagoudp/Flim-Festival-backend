@@ -1,5 +1,6 @@
 import Gallery from "../models/galleryModel.js";
 import GalleryYear from "../models/galleryYearModel.js";
+import GalleryDay from "../models/galleryDayModel.js";
 import multer from "multer";
 import { deleteLocalByUrl, saveBufferToLocal, saveMultipleToLocal } from "../utils/fileStorage.js";
 
@@ -18,17 +19,19 @@ export const addGalleryImage = async (req, res) => {
       );
     }
 
-    const { caption, year, photo: photoUrlFromBody } = req.body;
-
-    // Debug logging
-    console.log("Request body:", req.body);
-    console.log("Request files:", req.files);
-    console.log("Photo URL from body:", photoUrlFromBody);
+    const { caption, year, day, photo: photoUrlFromBody } = req.body;
 
     if (!year) return res.status(400).json({ message: "year is required" });
+    if (!day) return res.status(400).json({ message: "day is required" });
 
     const yearDoc = await GalleryYear.findById(year);
     if (!yearDoc) return res.status(400).json({ message: "Invalid year" });
+
+    const dayDoc = await GalleryDay.findById(day);
+    if (!dayDoc) return res.status(400).json({ message: "Invalid day" });
+    if (dayDoc.year.toString() !== yearDoc._id.toString()) {
+      return res.status(400).json({ message: "Day does not belong to selected year" });
+    }
 
     // Get files from both 'photo' and 'photos' fields
     const files = [];
@@ -53,7 +56,6 @@ export const addGalleryImage = async (req, res) => {
 
     // Handle single photo URL from body
     if (photoUrlFromBody) photoUrls.push(photoUrlFromBody);
-    console.log("Final photo URLs:", photoUrls);
 
     if (photoUrls.length === 0) {
       return res.status(400).json({ message: "Provide photo files or photo URL" });
@@ -63,6 +65,7 @@ export const addGalleryImage = async (req, res) => {
     const galleryData = photoUrls.map(photoUrl => ({
       caption,
       year: yearDoc._id,
+      day: dayDoc._id,
       photo: photoUrl
     }));
 
@@ -94,7 +97,7 @@ export const getGalleryGroupedByYear = async (_req, res) => {
 
 export const getGalleryByYear = async (req, res) => {
   try {
-    const { year, yearId } = req.query;
+    const { year, yearId, dayId } = req.query;
     let yearDoc = null;
     if (yearId) {
       yearDoc = await GalleryYear.findById(yearId);
@@ -103,8 +106,40 @@ export const getGalleryByYear = async (req, res) => {
     }
     if (!yearDoc) return res.status(400).json({ message: "Provide valid year or yearId" });
 
-    const items = await Gallery.find({ year: yearDoc._id }).sort({ createdAt: -1 });
-    res.status(200).json({ year: yearDoc.value, images: items.map(i => ({ _id: i._id, caption: i.caption, photo: i.photo })) });
+    const filter = { year: yearDoc._id };
+    if (dayId) filter.day = dayId;
+
+    const items = await Gallery.find(filter).populate("day", "name date order").sort({ createdAt: -1 });
+    const imagePayload = (i) => ({ _id: i._id, caption: i.caption, photo: i.photo, day: i.day });
+
+    if (dayId) {
+      return res.status(200).json({
+        year: yearDoc.value,
+        dayId,
+        images: items.map(imagePayload)
+      });
+    }
+
+    // Group by day for year-only request
+    const days = await GalleryDay.find({ year: yearDoc._id }).sort({ order: 1, createdAt: 1 });
+    const dayMap = new Map(days.map(d => [d._id.toString(), { _id: d._id, name: d.name, date: d.date, order: d.order, images: [] }]));
+    const imagesWithoutDay = [];
+    items.forEach((i) => {
+      const payload = { _id: i._id, caption: i.caption, photo: i.photo };
+      if (i.day) {
+        const dayIdStr = (i.day._id || i.day).toString();
+        if (dayMap.has(dayIdStr)) dayMap.get(dayIdStr).images.push(payload);
+        else imagesWithoutDay.push(payload);
+      } else {
+        imagesWithoutDay.push(payload);
+      }
+    });
+    const daysArray = Array.from(dayMap.values()).map(d => ({ ...d, images: d.images }));
+    res.status(200).json({
+      year: yearDoc.value,
+      days: daysArray,
+      imagesWithoutDay
+    });
   } catch (err) {
     console.error("Get gallery by year error:", err);
     res.status(500).json({ message: "Server error", error: err.message });
@@ -243,12 +278,16 @@ export const deleteYear = async (req, res) => {
       return res.status(404).json({ message: "Year not found" });
     }
 
-    // Check if year has associated images
     const imageCount = await Gallery.countDocuments({ year: id });
     if (imageCount > 0) {
       return res.status(400).json({
         message: `Cannot delete year. It has ${imageCount} associated image(s). Delete images first.`
       });
+    }
+
+    const dayCount = await GalleryDay.countDocuments({ year: id });
+    if (dayCount > 0) {
+      await GalleryDay.deleteMany({ year: id });
     }
 
     await GalleryYear.findByIdAndDelete(id);
@@ -265,6 +304,77 @@ export const getYears = async (_req, res) => {
     return res.status(200).json(years);
   } catch (err) {
     console.error("Get years error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+// --- Day CRUD (year → days → images) ---
+
+export const getDaysByYear = async (req, res) => {
+  try {
+    const { yearId } = req.query;
+    if (!yearId) return res.status(400).json({ message: "yearId is required" });
+    const yearDoc = await GalleryYear.findById(yearId);
+    if (!yearDoc) return res.status(404).json({ message: "Year not found" });
+    const days = await GalleryDay.find({ year: yearId }).sort({ order: 1, createdAt: 1 });
+    return res.status(200).json(days);
+  } catch (err) {
+    console.error("Get days by year error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+export const createDay = async (req, res) => {
+  try {
+    const { yearId, name, date, order } = req.body;
+    if (!yearId || !name) return res.status(400).json({ message: "yearId and name are required" });
+    const yearDoc = await GalleryYear.findById(yearId);
+    if (!yearDoc) return res.status(404).json({ message: "Year not found" });
+    const created = await GalleryDay.create({
+      year: yearId,
+      name: name.trim(),
+      date: date ? new Date(date) : undefined,
+      order: order != null ? Number(order) : 0
+    });
+    return res.status(201).json({ message: "Day created", item: created });
+  } catch (err) {
+    console.error("Create day error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+export const updateDay = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, date, order } = req.body;
+    const day = await GalleryDay.findById(id);
+    if (!day) return res.status(404).json({ message: "Day not found" });
+    if (name !== undefined) day.name = name.trim();
+    if (date !== undefined) day.date = date ? new Date(date) : undefined;
+    if (order !== undefined) day.order = Number(order);
+    await day.save();
+    return res.status(200).json({ message: "Day updated", item: day });
+  } catch (err) {
+    console.error("Update day error:", err);
+    return res.status(500).json({ message: "Server error", error: err.message });
+  }
+};
+
+export const deleteDay = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const day = await GalleryDay.findById(id);
+    if (!day) return res.status(404).json({ message: "Day not found" });
+    const imageCount = await Gallery.countDocuments({ day: id });
+    if (imageCount > 0) {
+      return res.status(400).json({
+        message: `Cannot delete day. It has ${imageCount} image(s). Delete images first.`
+      });
+    }
+    await GalleryDay.findByIdAndDelete(id);
+    return res.status(200).json({ message: "Day deleted successfully" });
+  } catch (err) {
+    console.error("Delete day error:", err);
     return res.status(500).json({ message: "Server error", error: err.message });
   }
 };

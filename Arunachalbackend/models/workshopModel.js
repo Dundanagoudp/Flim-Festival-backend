@@ -2,10 +2,10 @@ import mongoose from "mongoose";
 
 const WorkshopSchema = new mongoose.Schema(
   {
-    eventRef: {
+    categoryRef: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "EventsCollectionV1",
-      required: true,
+      ref: "WorkshopCategory",
+      required: false,
     },
     name: {
       type: String,
