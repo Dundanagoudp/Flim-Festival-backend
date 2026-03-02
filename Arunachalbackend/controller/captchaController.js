@@ -1,24 +1,47 @@
-import { createChallenge } from "altcha-lib";
+import svgCaptcha from "svg-captcha-fixed";
+import crypto from "crypto";
+
+const captchaStore = new Map();
+
+const CAPTCHA_TTL_MS = 5 * 60 * 1000;
+
+function cleanExpired() {
+  const now = Date.now();
+  for (const [id, entry] of captchaStore) {
+    if (now > entry.expiresAt) captchaStore.delete(id);
+  }
+}
 
 /**
- * Generate CAPTCHA challenge
- * Endpoint: GET /api/v1/captcha/generate
- * Returns: { challenge, salt, algorithm, signature }
+ * GET /api/v1/captcha/generate
+ * Returns { success, captchaId, svg }
  */
-export const generateCaptcha = async (req, res) => {
+export const generateCaptcha = (req, res) => {
   try {
-    const challenge = await createChallenge({
-      hmacKey: process.env.ALTCHA_SECRET_KEY,
-      algorithm: "SHA-256",
-      maxNumber: 100000,
-      saltLength: 12,
+    cleanExpired();
+
+    const captcha = svgCaptcha.create({
+      size: 8,
+      noise: 3,
+      color: true,
+      background: "#0a1628",
+      width: 280,
+      height: 60,
+      fontSize: 45,
+      ignoreChars: "0o1ilI",
+    });
+
+    const captchaId = crypto.randomUUID();
+
+    captchaStore.set(captchaId, {
+      answer: captcha.text,
+      expiresAt: Date.now() + CAPTCHA_TTL_MS,
     });
 
     res.json({
-      challenge: challenge.challenge,
-      salt: challenge.salt,
-      algorithm: challenge.algorithm,
-      signature: challenge.signature,
+      success: true,
+      captchaId,
+      svg: captcha.data,
     });
   } catch (error) {
     console.error("CAPTCHA generation error:", error);
@@ -28,3 +51,18 @@ export const generateCaptcha = async (req, res) => {
     });
   }
 };
+
+/**
+ * One-time verification — deletes entry after lookup.
+ * @returns {boolean}
+ */
+export function verifyCaptcha(captchaId, userInput) {
+  const entry = captchaStore.get(captchaId);
+  if (!entry) return false;
+
+  captchaStore.delete(captchaId);
+
+  if (Date.now() > entry.expiresAt) return false;
+
+  return entry.answer.toLowerCase() === String(userInput).toLowerCase();
+}

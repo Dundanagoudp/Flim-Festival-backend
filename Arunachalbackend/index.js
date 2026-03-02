@@ -47,6 +47,8 @@ const defaultOrigins = [
   "https://flimfestival.vercel.app",
   "https://arunachalfilmfestival.gully2global.in",
   "http://160.30.140.70",
+  "https://filmfest.arunachal.gov.in",
+  "https://www.filmfest.arunachal.gov.in",
 ];
 const allowedOrigins = process.env.CORS_ALLOWED_ORIGINS
   ? process.env.CORS_ALLOWED_ORIGINS.split(",")

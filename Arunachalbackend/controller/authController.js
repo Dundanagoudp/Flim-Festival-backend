@@ -2,6 +2,7 @@ import { notifyAdminsOfRegistration } from "../middleware/mailService.js";
 import User from "../models/userModel.js";
 import { generateToken } from "../utils/auth.js";
 import bcrypt from "bcryptjs";
+import { verifyCaptcha } from "./captchaController.js";
 
 const addUser = async (req, res) => {
     try {
@@ -26,12 +27,26 @@ const addUser = async (req, res) => {
 };
 const login = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, captchaId, captchaCode } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
         success: false,
         message: "Please provide email and password",
+      });
+    }
+
+    if (!captchaId || !captchaCode) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide captchaId and captchaCode",
+      });
+    }
+
+    if (!verifyCaptcha(captchaId, captchaCode)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid or expired CAPTCHA",
       });
     }
     
