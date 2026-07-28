@@ -9,3 +9,6 @@ yarn-error.log*
 
 .early.coverage
 .env
+
+# postman
+postman/
